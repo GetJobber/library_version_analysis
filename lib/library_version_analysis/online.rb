@@ -75,8 +75,17 @@ class Online
 
         next if scan[0] == "ruby" # ruby is special case, but this will mess up meta data slightly. need to figure that out
 
-        # vv = Versionline.new(:unknown, scan[1], scan[2], scan[3], scan[4], scan[5], scan[6].to_i, scan[7].to_i, scan[8].to_i, scan[9].to_f.round(2)) KEEP THIS FOR LIBYEAR FIX
-        vv = Versionline.new(:unknown, scan[1], scan[2], scan[3], scan[4], nil, scan[5].to_i, scan[6].to_i, scan[7].to_i)
+        vv = Versionline.new(
+          owner: :unknown,
+          current_version: scan[1],
+          current_version_date: scan[2],
+          latest_version: scan[3],
+          latest_version_date: scan[4],
+          releases_behind: nil,
+          major: scan[5].to_i,
+          minor: scan[6].to_i,
+          patch: scan[7].to_i)
+
         all_versions[scan[0]] = vv
       end
 

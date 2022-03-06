@@ -17,10 +17,11 @@ module LibraryVersionAnalysis
     :major,
     :minor,
     :patch,
-    :age
+    :age,
+    keyword_init: true
   )
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch)
-  ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :total, :total_lib_years, :one_number)
+  ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :one_number)
 
   # Valid owners. Keep for easy reference:
   # :api_platform
@@ -109,8 +110,8 @@ module LibraryVersionAnalysis
     end
 
     # represents a single number summary of the state of the libraries
-    def one_number(meta_data)
-      return meta_data.total_major.to_i * 100 + meta_data.total_minor.to_i * 10 + meta_data.total_patch.to_i
+    def one_number(mode_summary)
+      return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch*0.5
     end
 
     def spreadsheet_data(results, source)
@@ -157,9 +158,9 @@ module LibraryVersionAnalysis
       mode_summary.two_major = 0
       mode_summary.three_plus_major = 0
       mode_summary.minor = 0
+      mode_summary.patch = 0
       mode_summary.total = results.count
       mode_summary.total_lib_years = meta_data.total_age
-      mode_summary.one_number = one_number(meta_data)
 
       results.each do |hash_line|
         line = hash_line[1]
@@ -170,8 +171,12 @@ module LibraryVersionAnalysis
           mode_summary.three_plus_major = mode_summary.three_plus_major + 1 if line.major > 2
         elsif line.minor.positive?
           mode_summary.minor = mode_summary.minor + 1
+        elsif line.patch.positive?
+          mode_summary.patch = mode_summary.patch + 1
         end
       end
+
+      mode_summary.one_number = one_number(mode_summary)
 
       return mode_summary
     end

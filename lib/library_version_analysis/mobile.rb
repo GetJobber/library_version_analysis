@@ -34,7 +34,7 @@ class Mobile
 
       # With this new file-read approach, we could be using old data. protect against that.
       if !File.exist?(results_file) || Time.now.utc - File.mtime(results_file) > 300 # 5 minutes
-        puts "Either could not find #{results_file} or it is more than 5 minutes old"
+        puts "Either could not find #{results_file} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
         exit -1
       end
 
@@ -76,7 +76,18 @@ class Mobile
         meta_data.total_minor += line["minor"]
         meta_data.total_patch += line["patch"]
 
-        vv = Versionline.new(:unknown, "", "", line["available"], "", "", line["major"], line["minor"], line["patch"], drift)
+        vv = Versionline.new(
+          owner: :unknown,
+          current_version: "",
+          current_version_date: "",
+          latest_version: line["available"],
+          latest_version_date: "",
+          releases_behind: "",
+          major: line["major"],
+          minor: line["minor"],
+          patch: line["patch"],
+          age: drift)
+
         all_versions[line["dependency"]] = vv
       end
 

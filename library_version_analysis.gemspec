@@ -19,11 +19,11 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "https://github.com/GetJobber/Jobber/CHANGELOG.MD" # TODO set to this libraries repo
 
   spec.add_dependency 'google-api-client', '~> 0.27'
-  spec.add_dependency "googleauth", "~> 1.1.2"
+  spec.add_dependency "googleauth", "0.10.0"
   spec.add_dependency "libyear-bundler", "~> 0.6.0"
   spec.add_dependency "open3", "~> 0.1.1"
-  spec.add_dependency "pry", "~> 0.14.1"
-  spec.add_dependency 'pry-byebug', "~> 3.8.0"
+  spec.add_dependency "pry", "~> 0.13.1"
+  spec.add_dependency 'pry-byebug', "~> 3.9.0"
 
 
   spec.add_development_dependency "rspec", "~> 3.2"
