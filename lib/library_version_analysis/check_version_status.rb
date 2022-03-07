@@ -3,9 +3,6 @@ require "pry"
 require "googleauth"
 require "google/apis/sheets_v4"
 
-# require "./online"
-# require "./mobile"
-
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
@@ -33,9 +30,6 @@ module LibraryVersionAnalysis
   # :self_serve
 
   class CheckVersionStatus
-    # The following warnings point to rails features. This will not be running under rails.
-    # rubocop:disable Rails/Output
-
     # Useful during dev
     # ONLINE_OVERRIDE = true
     # ONLINE_OVERRIDE = false
@@ -203,7 +197,5 @@ module LibraryVersionAnalysis
     def print_summary(source, meta_data, mode_data)
       puts "#{source}: #{meta_data}, #{mode_data}"
     end
-
-    # rubocop:enable Rails/Output
   end
 end

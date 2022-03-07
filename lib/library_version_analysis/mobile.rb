@@ -1,11 +1,5 @@
 module LibraryVersionAnalysis
 class Mobile
-    # The following warnings point to rails features. This will not be running under rails.
-    # rubocop:disable Rails/Blank
-    # rubocop:disable Rails/Exit
-    # rubocop:disable Rails/Output
-    # rubocop:disable Style/NumericPredicate
-
     def get_versions(path)
       libyear_results = run_libyear(path)
       if libyear_results.nil?
@@ -167,10 +161,5 @@ class Mobile
       end
       results
     end
-
-    # rubocop:enable Style/NumericPredicate
-    # rubocop:enable Rails/Output
-    # rubocop:enable Rails/Blank
-    # rubocop:enable Rails/Exit
   end
 end

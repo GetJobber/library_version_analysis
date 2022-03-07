@@ -1,15 +1,11 @@
 module LibraryVersionAnalysis
 class Online
-    # The following warnings point to rails features. This will not be running under rails.
-    # rubocop:disable Rails/Blank
-    # rubocop:disable Rails/Exit
-    # rubocop:disable Rails/Output
-
-    def get_versions(_)
+    def get_versions
       libyear_results = run_libyear("--versions")
+
       if libyear_results.nil?
         puts "Running libyear --versions produced no results. Exiting"
-        exit -1
+        exit(-1)
       end
 
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
@@ -29,7 +25,7 @@ class Online
       scan_result = line.scan(/#{regex}/)
       return scan_result[0][0] unless scan_result.nil? || scan_result.empty?
 
-      return nil
+      nil
     end
 
     def run_libyear(param)
@@ -45,7 +41,7 @@ class Online
         return nil
       end
 
-      return results
+      results
     end
 
     def parse_libyear_versions(results)
@@ -55,6 +51,7 @@ class Online
       results.each_line do |line|
         # scan_result = line.scan(/\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*\[(\d*), (\d*), (\d*)\]\s*(\S*)/) KEEP THIS FOR LIBYEAR FIX
         scan_result = line.scan(/\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*\[(\d*), (\d*), (\d*)\]/)
+
         if scan_result.nil? || scan_result.empty?
           # check for meta data
           data = check_for("Total releases behind: (.*)", line)
@@ -122,8 +119,7 @@ class Online
     end
 
     def add_ownership_from_gemfile(parsed_results)
-      file = File.open("./Gemfile")
-      data = file.read
+      data = read_file
 
       data.each_line do |line|
         scan_result = line.scan(/\s*jgem\s*(\S*),\s*"(\S*)"/)
@@ -135,8 +131,14 @@ class Online
 
         version.owner = scan_result[0][0]
       end
+    end
 
+    def read_file
+      file = File.open("./Gemfile")
+      data = file.read
       file.close
+
+      return data
     end
 
     def add_ownership_from_transitive(parsed_results)
@@ -186,12 +188,8 @@ class Online
       }
 
       special_cases.each do |name, owner|
-        parsed_results[name.to_s].owner = owner
+        parsed_results[name.to_s].owner = owner if parsed_results.key?(name.to_s)
       end
     end
-
-    # rubocop:enable Rails/Output
-    # rubocop:enable Rails/Exit
-    # rubocop:enable Rails/Blank
   end
 end
