@@ -1,6 +1,6 @@
 module LibraryVersionAnalysis
-class Online
-    def get_versions
+  class Online
+    def get_versions(_)
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
@@ -114,8 +114,8 @@ class Online
 
     def add_ownerships(parsed_results)
       add_ownership_from_gemfile(parsed_results)
-      add_ownership_from_transitive(parsed_results)
       add_special_case_ownerships(parsed_results)
+      add_ownership_from_transitive(parsed_results)
     end
 
     def add_ownership_from_gemfile(parsed_results)
@@ -183,12 +183,23 @@ class Online
         activerecord: ":api_platform",
         activestorage: ":api_platform",
         activesupport: ":api_platform",
+        jobber_common_async: ":enablers",
+        jobber_common_base: ":enablers",
+        jobber_common_dev_setup: ":enablers",
+        jobber_common_concerns: ":enablers",
+        jobber_common_configuration: ":enablers",
+        jobber_monkey_patches: ":enablers",
+        jobber_opensearch_client: ":enablers",
         rails: ":api_platform",
         railties: ":api_platform",
       }
 
       special_cases.each do |name, owner|
-        parsed_results[name.to_s].owner = owner if parsed_results.key?(name.to_s)
+        if parsed_results.key?(name.to_s)
+          parsed_results[name.to_s].owner = owner if parsed_results.key?(name.to_s)
+        else
+          parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0)
+        end
       end
     end
   end

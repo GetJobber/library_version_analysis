@@ -18,7 +18,7 @@ module LibraryVersionAnalysis
     keyword_init: true
   )
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch)
-  ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :one_number)
+  ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :unowned_issues, :one_number)
 
   # Valid owners. Keep for easy reference:
   # :api_platform
@@ -155,6 +155,7 @@ module LibraryVersionAnalysis
       mode_summary.patch = 0
       mode_summary.total = results.count
       mode_summary.total_lib_years = meta_data.total_age
+      mode_summary.unowned_issues = 0
 
       results.each do |hash_line|
         line = hash_line[1]
@@ -168,11 +169,21 @@ module LibraryVersionAnalysis
         elsif line.patch.positive?
           mode_summary.patch = mode_summary.patch + 1
         end
+
+        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if unowned_needs_attention?(line)
       end
 
       mode_summary.one_number = one_number(mode_summary)
 
       return mode_summary
+    end
+
+    def unowned_needs_attention?(line)
+      return false unless line.owner == "unspecified"
+
+      return true if line.major > 0
+      return true if line.major == 0 && line.minor > 20
+      return true if !line.age.nil? && line.age > 3.0
     end
 
     def build_mode_results(mode_results)

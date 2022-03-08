@@ -47,8 +47,8 @@ RSpec.describe LibraryVersionAnalysis::Online do
       allow(analyzer).to receive(:read_file).and_return(gemfile)
       allow(Open3).to receive(:capture3).and_return(["", "", Status.new(1)])
       allow(Open3).to receive(:capture3).with(/bundle why transitivebox/).and_return([bundle_why, "", Status.new(0)])
-      results = analyzer.get_versions
-
+      results = analyzer.get_versions(nil)
+      binding.pry
       results
     }
 
