@@ -54,7 +54,7 @@ module LibraryVersionAnalysis
       mobile = MOBILE_OVERRIDE if defined?(MOBILE_OVERRIDE)
 
       meta_data_online, mode_online = go_online(spreadsheet_id) if online
-      meta_data_online_node, mode_online_node = go_online_mode(spreadsheet_id) if online_node
+      meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id) if online_node
       meta_data_mobile, mode_mobile = go_mobile(spreadsheet_id) if mobile
 
       print_summary("online", meta_data_online, mode_online) if online
@@ -76,7 +76,7 @@ module LibraryVersionAnalysis
       return meta_data_online, mode_online
     end
 
-    def go_online_mode(spreadsheet_id)
+    def go_online_node(spreadsheet_id)
       puts "  online node"
       mobile_node = Mobile.new
       meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:L", spreadsheet_id, ".", "ONLINE NODE")

@@ -26,15 +26,19 @@ module LibraryVersionAnalysis
       # Get libyear results
       results_file = "#{path}/libyear_report.txt"
 
+      results = read_file(results_file)
+
+      return results
+    end
+
+    def read_file(path)
       # With this new file-read approach, we could be using old data. protect against that.
       if !File.exist?(results_file) || Time.now.utc - File.mtime(results_file) > 300 # 5 minutes
         puts "Either could not find #{results_file} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
         exit -1
       end
 
-      results = File.read(results_file)
-
-      return results
+      return File.read(path)
     end
 
     def run_libyear_open3(path)
@@ -104,12 +108,12 @@ module LibraryVersionAnalysis
     def add_ownerships(path, parsed_results)
       # Get ownerships
       package_file = "#{path}/package.json"
-      file = File.read(package_file)
+      file = read_file(package_file)
       ownerships = {}
       package_data = JSON.parse(file)
       package_data["ownerships"].each do |name, owner|
         ownerships[name] = owner
-        parsed_results[name].owner = owner
+        parsed_results[name].owner = owner if parsed_results.key?(name)
       end
 
       transitive_mappings = build_transitive_mapping(path, parsed_results)
