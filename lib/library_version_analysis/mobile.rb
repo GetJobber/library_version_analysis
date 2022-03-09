@@ -26,15 +26,15 @@ module LibraryVersionAnalysis
       # Get libyear results
       results_file = "#{path}/libyear_report.txt"
 
-      results = read_file(results_file)
+      results = read_file(results_file, true)
 
       return results
     end
 
-    def read_file(path)
+    def read_file(path, check_time)
       # With this new file-read approach, we could be using old data. protect against that.
-      if !File.exist?(results_file) || Time.now.utc - File.mtime(results_file) > 300 # 5 minutes
-        puts "Either could not find #{results_file} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
+      if !File.exist?(path) || ( check_time && Time.now.utc - File.mtime(path) > 300 ) # 5 minutes
+        puts "Either could not find #{path} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
         exit -1
       end
 
@@ -108,7 +108,7 @@ module LibraryVersionAnalysis
     def add_ownerships(path, parsed_results)
       # Get ownerships
       package_file = "#{path}/package.json"
-      file = read_file(package_file)
+      file = read_file(package_file, false)
       ownerships = {}
       package_data = JSON.parse(file)
       package_data["ownerships"].each do |name, owner|

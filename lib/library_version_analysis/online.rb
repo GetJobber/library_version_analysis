@@ -113,24 +113,34 @@ module LibraryVersionAnalysis
     end
 
     def add_ownerships(parsed_results)
-      add_ownership_from_gemfile(parsed_results)
+      up_to_date_ownership = add_ownership_from_gemfile(parsed_results)
       add_special_case_ownerships(parsed_results)
-      add_ownership_from_transitive(parsed_results)
+      add_ownership_from_transitive(parsed_results, up_to_date_ownership)
     end
 
     def add_ownership_from_gemfile(parsed_results)
       data = read_file
+
+      up_to_date_ownership = {}
 
       data.each_line do |line|
         scan_result = line.scan(/\s*jgem\s*(\S*),\s*"(\S*)"/)
 
         next if scan_result.nil? || scan_result.empty?
 
-        version = parsed_results[scan_result[0][1]]
-        next if version.nil?
+        owner = scan_result[0][0]
+        gem = scan_result[0][1]
 
-        version.owner = scan_result[0][0]
+        version = parsed_results[gem]
+        if version.nil?
+          up_to_date_ownership[gem] = owner
+          next
+        end
+
+        version.owner = owner
       end
+
+      return up_to_date_ownership
     end
 
     def read_file
@@ -141,7 +151,7 @@ module LibraryVersionAnalysis
       return data
     end
 
-    def add_ownership_from_transitive(parsed_results)
+    def add_ownership_from_transitive(parsed_results, up_to_date_ownership)
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
         cmd = "bundle why #{name}"
         results, captured_err, status = Open3.capture3(cmd)
@@ -158,7 +168,9 @@ module LibraryVersionAnalysis
 
           parent_name = scan_result[0][0]
 
-          if parsed_results[parent_name].nil? || parsed_results[parent_name].owner == :unknown || parsed_results[parent_name].owner == :unspecified
+          if parsed_results[parent_name].nil? && up_to_date_ownership.key?(parent_name)
+            line_data.owner = up_to_date_ownership[parent_name]
+          elsif parsed_results[parent_name].nil? || parsed_results[parent_name].owner == :unknown || parsed_results[parent_name].owner == :unspecified
             line_data.owner = :transitive_unspecified
           else
             parent_owner = parsed_results[parent_name].owner

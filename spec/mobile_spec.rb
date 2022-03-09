@@ -63,8 +63,8 @@ jobber-mobile@4.73.0 /Users/johnz/source/jobber-mobile
   context "mobile" do
     subject {
       analyzer = LibraryVersionAnalysis::Mobile.new
-      allow(analyzer).to receive(:read_file).with("./libyear_report.txt").and_return(npxfile)
-      allow(analyzer).to receive(:read_file).with("./package.json").and_return(packagefile)
+      allow(analyzer).to receive(:read_file).with("./libyear_report.txt", true).and_return(npxfile)
+      allow(analyzer).to receive(:read_file).with("./package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
 
       analyzer.get_versions(".")

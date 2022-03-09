@@ -170,7 +170,10 @@ module LibraryVersionAnalysis
           mode_summary.patch = mode_summary.patch + 1
         end
 
-        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if unowned_needs_attention?(line)
+        if unowned_needs_attention?(line)
+          mode_summary.unowned_issues = mode_summary.unowned_issues + 1
+          line.owner = ":attention_needed"
+        end
       end
 
       mode_summary.one_number = one_number(mode_summary)
@@ -179,7 +182,7 @@ module LibraryVersionAnalysis
     end
 
     def unowned_needs_attention?(line)
-      return false unless line.owner == "unspecified"
+      return false unless line.owner == :unspecified || line.owner == :transitive_unspecified
 
       return true if line.major > 0
       return true if line.major == 0 && line.minor > 20
