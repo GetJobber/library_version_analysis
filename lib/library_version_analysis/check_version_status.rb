@@ -1,5 +1,5 @@
 require "open3"
-require "pry"
+# require "pry"
 require "googleauth"
 require "google/apis/sheets_v4"
 
@@ -87,7 +87,7 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id)
       puts "  mobile"
       mobile = Mobile.new
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:L", spreadsheet_id, "../jobber-mobile", "MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:L", spreadsheet_id, ".", "MOBILE")
 
       return meta_data_mobile, mode_mobile
     end
