@@ -20,6 +20,8 @@ module LibraryVersionAnalysis
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :unowned_issues, :one_number)
 
+  DEV_OUTPUT = false
+
   # Valid owners. Keep for easy reference:
   # :api_platform
   # :core
@@ -46,7 +48,7 @@ module LibraryVersionAnalysis
     end
 
     def go(spreadsheet_id, online, online_node, mobile)
-      puts "Check Version"
+      puts "Check Version" if DEV_OUTPUT
 
       # useful during dev
       online = ONLINE_OVERRIDE if defined?(ONLINE_OVERRIDE)
@@ -57,9 +59,9 @@ module LibraryVersionAnalysis
       meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id) if online_node
       meta_data_mobile, mode_mobile = go_mobile(spreadsheet_id) if mobile
 
-      print_summary("online", meta_data_online, mode_online) if online
-      print_summary("online_node", meta_data_online_node, mode_online_node) if online_node
-      print_summary("mobile", meta_data_mobile, mode_mobile) if mobile
+      print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
+      print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
+      print_summary("mobile", meta_data_mobile, mode_mobile) if mobile && DEV_OUTPUT
 
       return {
         online: mode_online,
@@ -69,7 +71,7 @@ module LibraryVersionAnalysis
     end
 
     def go_online(spreadsheet_id)
-      puts "  online"
+      puts "  online" if DEV_OUTPUT
       online = Online.new
       meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:L", spreadsheet_id, nil, "ONLINE")
 
@@ -77,7 +79,7 @@ module LibraryVersionAnalysis
     end
 
     def go_online_node(spreadsheet_id)
-      puts "  online node"
+      puts "  online node" if DEV_OUTPUT
       mobile_node = Mobile.new
       meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:L", spreadsheet_id, ".", "ONLINE NODE")
 
@@ -85,7 +87,7 @@ module LibraryVersionAnalysis
     end
 
     def go_mobile(spreadsheet_id)
-      puts "  mobile"
+      puts "  mobile" if DEV_OUTPUT
       mobile = Mobile.new
       meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:L", spreadsheet_id, ".", "MOBILE")
 
@@ -97,7 +99,7 @@ module LibraryVersionAnalysis
       mode = get_mode_summary(parsed_results, meta_data)
       data = spreadsheet_data(parsed_results, source)
 
-      puts "    updating spreadsheet"
+      puts "    updating spreadsheet" if DEV_OUTPUT
       update_spreadsheet(spreadsheet_id, range, data)
 
       return meta_data, mode
@@ -105,7 +107,7 @@ module LibraryVersionAnalysis
 
     # represents a single number summary of the state of the libraries
     def one_number(mode_summary)
-      return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch*0.5
+      return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
     def spreadsheet_data(results, source)
@@ -184,8 +186,8 @@ module LibraryVersionAnalysis
     def unowned_needs_attention?(line)
       return false unless line.owner == :unspecified || line.owner == :transitive_unspecified
 
-      return true if line.major > 0
-      return true if line.major == 0 && line.minor > 20
+      return true if line.major.positive?
+      return true if line.major.zero? && line.minor > 20
       return true if !line.age.nil? && line.age > 3.0
     end
 
@@ -204,6 +206,7 @@ module LibraryVersionAnalysis
         two_major: mode_results.dig(source, :two_major),
         three_plus_major: mode_results.dig(source, :three_plus_major),
         minor: mode_results.dig(source, :minor),
+        unowned_issues: mode_results.dig(source, :unowned_issues),
         one_number: mode_results.dig(source, :one_number),
       }
     end

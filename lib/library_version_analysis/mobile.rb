@@ -3,7 +3,7 @@ module LibraryVersionAnalysis
     def get_versions(path)
       libyear_results = run_libyear(path)
       if libyear_results.nil?
-        puts "Running libyear produced no results. Exiting"
+        warn "Running libyear produced no results. Exiting"
         exit -1
       end
 
@@ -33,8 +33,8 @@ module LibraryVersionAnalysis
 
     def read_file(path, check_time)
       # With this new file-read approach, we could be using old data. protect against that.
-      if !File.exist?(path) || ( check_time && Time.now.utc - File.mtime(path) > 300 ) # 5 minutes
-        puts "Either could not find #{File.expand_path(path)} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
+      if !File.exist?(path) || (check_time && Time.now.utc - File.mtime(path) > 300) # 5 minutes
+        warn "Either could not find #{File.expand_path(path)} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
         exit -1
       end
 
@@ -84,7 +84,8 @@ module LibraryVersionAnalysis
           major: line["major"],
           minor: line["minor"],
           patch: line["patch"],
-          age: drift)
+          age: drift
+        )
 
         all_versions[line["dependency"]] = vv
       end
@@ -113,7 +114,7 @@ module LibraryVersionAnalysis
       package_data = JSON.parse(file)
       package_data["ownerships"].each do |name, owner|
         ownerships[name] = owner
-        parsed_results[name].owner = owner if parsed_results.key?(name)
+        parsed_results[name].owner = owner if parsed_results.has_key?(name)
       end
 
       transitive_mappings = build_transitive_mapping(path, parsed_results)
@@ -147,7 +148,7 @@ module LibraryVersionAnalysis
 
         parsed_results[name].current_version = current_version unless parsed_results[name].nil?
 
-        parent = name if !name.nil? && (line.count("│") == 0 || line[0] == "├")
+        parent = name if !name.nil? && (line.count("│").zero? || line[0] == "├")
 
         mappings[name] = parent unless name.nil?
       end

@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
 
 require "library_version_analysis"
-LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: ARGV[0], online: ARGV[1], online_node: ARGV[2], mobile: ARGV[3])
+results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: ARGV[0], online: ARGV[1], online_node: ARGV[2], mobile: ARGV[3])
+puts results

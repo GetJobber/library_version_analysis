@@ -1,33 +1,33 @@
 Status = Struct.new(:exitstatus)
 
 RSpec.describe LibraryVersionAnalysis::Online do
-  let(:libyear_versions) {
+  let(:libyear_versions) do
     <<~DOC
             packwerk          1.0.3     2018-01-25          1.1.0     2020-11-12      [0, 1, 0]
                aasm          4.1.1     2020-08-11          5.2.0     2021-05-02      [1, 0, 0]
         actioncable        6.0.3.5     2021-02-10        7.0.2.2     2022-02-11      [1, 0, 0]
       transitivebox        5.0.3.5     2021-02-10        7.0.2.2     2022-02-11      [2, 0, 0]
     DOC
-  }
-  let(:libyear_libyear) {
+  end
+  let(:libyear_libyear) do
     <<~DOC
            packwerk          1.0.3     2018-01-25          1.1.0     2020-11-12       2.8
                aasm          4.1.1     2020-08-11          5.2.0     2021-05-02       0.7
         actioncable        6.0.3.5     2021-02-10        7.0.2.2     2022-02-11       1.0
       transitivebox        5.0.3.5     2021-02-10        7.0.2.2     2022-02-11       1.0
     DOC
-  }
-  let(:gemfile) {
+  end
+  let(:gemfile) do
     <<~DOC
       jgem :core, "aasm", '>= 5.0.6'
       jgem :self_serve, "packwerk"
     DOC
-  }
-  let(:bundle_why) {
+  end
+  let(:bundle_why) do
     <<~DOC
       packwerk -> pdf-reader -> transitivebox
     DOC
-  }
+  end
 
   def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:)
     expect(result[:owner]).to eq(owner)
@@ -39,8 +39,8 @@ RSpec.describe LibraryVersionAnalysis::Online do
     expect(result[:age]).to eq(age)
   end
 
-  context "online" do
-    subject {
+  context "when online" do
+    subject do
       analyzer = LibraryVersionAnalysis::Online.new
       allow(analyzer).to receive(:run_libyear).with(/--versions/).and_return(libyear_versions)
       allow(analyzer).to receive(:run_libyear).with(/--libyear/).and_return(libyear_libyear)
@@ -48,7 +48,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       allow(Open3).to receive(:capture3).and_return(["", "", Status.new(1)])
       allow(Open3).to receive(:capture3).with(/bundle why transitivebox/).and_return([bundle_why, "", Status.new(0)])
       analyzer.get_versions(nil)
-    }
+    end
 
     it "should get expected data for owned gem" do
       do_compare(

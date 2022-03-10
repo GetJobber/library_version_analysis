@@ -4,7 +4,7 @@ module LibraryVersionAnalysis
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
-        puts "Running libyear --versions produced no results. Exiting"
+        warn "Running libyear --versions produced no results. Exiting"
         exit(-1)
       end
 
@@ -81,7 +81,8 @@ module LibraryVersionAnalysis
           releases_behind: nil,
           major: scan[5].to_i,
           minor: scan[6].to_i,
-          patch: scan[7].to_i)
+          patch: scan[7].to_i
+        )
 
         all_versions[scan[0]] = vv
       end
@@ -168,7 +169,7 @@ module LibraryVersionAnalysis
 
           parent_name = scan_result[0][0]
 
-          if parsed_results[parent_name].nil? && up_to_date_ownership.key?(parent_name)
+          if parsed_results[parent_name].nil? && up_to_date_ownership.has_key?(parent_name)
             line_data.owner = up_to_date_ownership[parent_name]
           elsif parsed_results[parent_name].nil? || parsed_results[parent_name].owner == :unknown || parsed_results[parent_name].owner == :unspecified
             line_data.owner = :transitive_unspecified
@@ -207,8 +208,8 @@ module LibraryVersionAnalysis
       }
 
       special_cases.each do |name, owner|
-        if parsed_results.key?(name.to_s)
-          parsed_results[name.to_s].owner = owner if parsed_results.key?(name.to_s)
+        if parsed_results.has_key?(name.to_s)
+          parsed_results[name.to_s].owner = owner if parsed_results.has_key?(name.to_s)
         else
           parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0)
         end
