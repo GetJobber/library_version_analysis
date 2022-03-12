@@ -1,7 +1,7 @@
-require "open3"
-# require "pry"
 require "googleauth"
 require "google/apis/sheets_v4"
+require "open3"
+require "pry"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -10,17 +10,17 @@ module LibraryVersionAnalysis
     :current_version_date,
     :latest_version,
     :latest_version_date,
-    :releases_behind,
+    :cvss,
     :major,
     :minor,
     :patch,
     :age,
     keyword_init: true
   )
-  MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch)
-  ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :unowned_issues, :one_number)
+  MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
+  ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
 
-  DEV_OUTPUT = false
+  DEV_OUTPUT = true
 
   # Valid owners. Keep for easy reference:
   # :api_platform
@@ -96,6 +96,8 @@ module LibraryVersionAnalysis
 
     def get_version_summary(parser, range, spreadsheet_id, path, source)
       parsed_results, meta_data = parser.get_versions(path)
+      get_dependabot_findings(parsed_results, meta_data, "Jobber")
+
       mode = get_mode_summary(parsed_results, meta_data)
       data = spreadsheet_data(parsed_results, source)
 
@@ -105,13 +107,25 @@ module LibraryVersionAnalysis
       return meta_data, mode
     end
 
+    def get_dependabot_findings(parsed_results, meta_data, github_name)
+      github = LibraryVersionAnalysis::Github.new
+      alerts = github.find_alerts(github_name)
+
+      meta_data.total_cvss = 0
+
+      alerts.each do |package, cvss|
+        parsed_results[package].cvss = cvss if parsed_results.has_key?(package)
+        meta_data.total_cvss = meta_data.total_cvss + 1
+      end
+    end
+
     # represents a single number summary of the state of the libraries
     def one_number(mode_summary)
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
     def spreadsheet_data(results, source)
-      header_row = %w(name owner source current_version current_version_date latest_version latest_version_date releases_behind major minor patch age)
+      header_row = %w(name owner source current_version current_version_date latest_version latest_version_date major minor patch age cvss)
       data = [header_row]
 
       data << ["Updated: #{Time.now.utc}"]
@@ -125,11 +139,11 @@ module LibraryVersionAnalysis
           row.current_version_date,
           row.latest_version,
           row.latest_version_date,
-          row.releases_behind,
           row.major,
           row.minor,
           row.patch,
           row.age,
+          row.cvss,
         ]
       end
 
@@ -158,6 +172,7 @@ module LibraryVersionAnalysis
       mode_summary.total = results.count
       mode_summary.total_lib_years = meta_data.total_age
       mode_summary.unowned_issues = 0
+      mode_summary.total_cvss = meta_data.total_cvss
 
       results.each do |hash_line|
         line = hash_line[1]

@@ -78,7 +78,6 @@ module LibraryVersionAnalysis
           current_version_date: scan[2],
           latest_version: scan[3],
           latest_version_date: scan[4],
-          releases_behind: nil,
           major: scan[5].to_i,
           minor: scan[6].to_i,
           patch: scan[7].to_i

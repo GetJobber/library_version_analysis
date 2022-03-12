@@ -18,12 +18,13 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = "https://github.com/GetJobber/library_version_analysis"
   spec.metadata["changelog_uri"] = "https://github.com/GetJobber/library_version_analysis/CHANGELOG.MD"
 
-  spec.add_dependency 'google-api-client', '~> 0.27'
-  spec.add_dependency "googleauth", "0.10.0"
-  spec.add_dependency "libyear-bundler", "~> 0.6.0"
-  spec.add_dependency "open3", "~> 0.1.1"
-  spec.add_dependency "pry", "~> 0.13.1"
-  spec.add_dependency 'pry-byebug', "~> 3.9.0"
+  spec.add_dependency "libyear-bundler"#, "~> 0.6.0"
+  spec.add_dependency 'google-api-client'#, '~> 0.27'
+  spec.add_dependency "googleauth"#, "0.10.0"
+  spec.add_dependency "graphql-client"
+  spec.add_dependency "open3"#, "~> 0.1.1"
+  # spec.add_dependency "pry", "~> 0.13.1"
+  spec.add_dependency 'pry-byebug'#, "~> 3.9.0"
 
   spec.add_development_dependency "rspec", "~> 3.2"
 

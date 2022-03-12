@@ -80,7 +80,6 @@ module LibraryVersionAnalysis
           current_version_date: "",
           latest_version: line["available"],
           latest_version_date: "",
-          releases_behind: "",
           major: line["major"],
           minor: line["minor"],
           patch: line["patch"],
