@@ -73,7 +73,7 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id)
       puts "  online" if DEV_OUTPUT
       online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:L", spreadsheet_id, nil, "ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:L", spreadsheet_id, nil, "ONLINE", "RUBYGEMS")
 
       return meta_data_online, mode_online
     end
@@ -81,7 +81,7 @@ module LibraryVersionAnalysis
     def go_online_node(spreadsheet_id)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Mobile.new
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:L", spreadsheet_id, ".", "ONLINE NODE")
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:L", spreadsheet_id, ".", "ONLINE NODE", "NPM")
 
       return meta_data_online_node, mode_online_node
     end
@@ -89,14 +89,13 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id)
       puts "  mobile" if DEV_OUTPUT
       mobile = Mobile.new
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:L", spreadsheet_id, ".", "MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:L", spreadsheet_id, ".", "MOBILE", "NPM")
 
       return meta_data_mobile, mode_mobile
     end
 
-    def get_version_summary(parser, range, spreadsheet_id, path, source)
+    def get_version_summary(parser, range, spreadsheet_id, path, source, ecosystem)
       parsed_results, meta_data = parser.get_versions(path)
-      get_dependabot_findings(parsed_results, meta_data, "Jobber")
 
       mode = get_mode_summary(parsed_results, meta_data)
       data = spreadsheet_data(parsed_results, source)
@@ -105,18 +104,6 @@ module LibraryVersionAnalysis
       update_spreadsheet(spreadsheet_id, range, data)
 
       return meta_data, mode
-    end
-
-    def get_dependabot_findings(parsed_results, meta_data, github_name)
-      github = LibraryVersionAnalysis::Github.new
-      alerts = github.find_alerts(github_name)
-
-      meta_data.total_cvss = 0
-
-      alerts.each do |package, cvss|
-        parsed_results[package].cvss = cvss if parsed_results.has_key?(package)
-        meta_data.total_cvss = meta_data.total_cvss + 1
-      end
     end
 
     # represents a single number summary of the state of the libraries
@@ -199,11 +186,12 @@ module LibraryVersionAnalysis
     end
 
     def unowned_needs_attention?(line)
-      return false unless line.owner == :unspecified || line.owner == :transitive_unspecified
+      return false unless line.owner == :unspecified || line.owner == :transitive_unspecified || line.owner == :unknown
 
       return true if line.major.positive?
       return true if line.major.zero? && line.minor > 20
       return true if !line.age.nil? && line.age > 3.0
+      return true unless line.cvss.nil?
     end
 
     def build_mode_results(mode_results)

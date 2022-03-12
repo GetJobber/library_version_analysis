@@ -8,6 +8,7 @@ module LibraryVersionAnalysis
       end
 
       parsed_results, meta_data = parse_libyear(libyear_results)
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "NPM")
       add_ownerships(path, parsed_results)
 
       return parsed_results, meta_data
@@ -122,6 +123,8 @@ module LibraryVersionAnalysis
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
         parent = transitive_mappings[name]
 
+        next if parent.nil? # This can ha
+
         if parsed_results[parent].owner == :unknown
           line_data.owner = :transitive_unspecified # note, this order is important, line_data and parsed_result[parent] could be the same thing
           parsed_results[parent].owner = :unspecified # in which case, we want :unspecified
@@ -144,7 +147,6 @@ module LibraryVersionAnalysis
 
         name = scan_result[0][0]
         current_version = scan_result[0][1]
-
         parsed_results[name].current_version = current_version unless parsed_results[name].nil?
 
         parent = name if !name.nil? && (line.count("│").zero? || line[0] == "├")
