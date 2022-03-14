@@ -48,7 +48,7 @@ module LibraryVersionAnalysis
     AlertsQuery = Github::CLIENT.parse <<-GRAPHQL
       query($name: String!) {
         repository(name: $name, owner: "GetJobber") {
-      	  vulnerabilityAlerts(first: 5) {
+      	  vulnerabilityAlerts(first: 100) {
             ...data
           }
         }
@@ -60,7 +60,7 @@ module LibraryVersionAnalysis
     AlertsQueryNext = Github::CLIENT.parse <<-GRAPHQL
       query($name: String!, $cursor: String!) {
         repository(name: $name, owner: "GetJobber") {
-      	  vulnerabilityAlerts(first: 5, after: $cursor) {
+      	  vulnerabilityAlerts(first: 100, after: $cursor) {
             ...data
           }
         }
