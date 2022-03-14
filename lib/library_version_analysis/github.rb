@@ -1,12 +1,11 @@
 require "graphql/client"
 require "graphql/client/http"
-require "pry"
 
 module LibraryVersionAnalysis
   class Github
     URL = "https://api.github.com/graphql".freeze
 
-    HttpAdapter = GraphQL::Client::HTTP.new(URL) do
+    HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
       def headers(_context)
         {
           "Authorization" => "Bearer #{ENV['GITHUB_IMPORT_TOKEN']}",
@@ -14,71 +13,59 @@ module LibraryVersionAnalysis
         }
       end
     end
-    Schema = GraphQL::Client.load_schema(HttpAdapter)
-    Client = GraphQL::Client.new(schema: Schema, execute: HttpAdapter)
+    SCHEMA = GraphQL::Client.load_schema(HTTP_ADAPTER)
+    CLIENT = GraphQL::Client.new(schema: SCHEMA, execute: HTTP_ADAPTER)
 
     def initialize; end
 
-    AlertsQuery = Github::Client.parse <<-'GRAPHQL'
-      query($name: String!) {
-        repository(name: $name, owner: "GetJobber") {
-          vulnerabilityAlerts(first: 100) {
-            totalCount
-            nodes {
-              securityVulnerability {
-                package {
-                  ecosystem
-                  name
-                }
-                advisory {
-                  databaseId
-                  identifiers {
-                    type
-                    value
-                  }
-                }
-                severity
+    ALERTS_FRAGMENT = <<-GRAPHQL.freeze
+      fragment data on RepositoryVulnerabilityAlertConnection {
+        totalCount
+        nodes {
+          securityVulnerability {
+            package {
+              ecosystem
+              name
+            }
+            advisory {
+              databaseId
+              identifiers {
+                type
+                value
               }
-              number
             }
-            pageInfo {
-              endCursor
-              hasNextPage
-            }
+            severity
           }
+          number
+        }
+        pageInfo {
+          endCursor
+          hasNextPage
         }
       }
     GRAPHQL
 
-    AlertsQueryNext = Github::Client.parse <<-'GRAPHQL'
-      query($name: String!, $cursor: String!) {
+    AlertsQuery = Github::CLIENT.parse <<-GRAPHQL
+      query($name: String!) {
         repository(name: $name, owner: "GetJobber") {
-          vulnerabilityAlerts(first: 100, after: $cursor) {
-            totalCount
-            nodes {
-              securityVulnerability {
-                package {
-                  ecosystem
-                  name
-                }
-                advisory {
-                  databaseId
-                  identifiers {
-                    type
-                    value
-                  }
-                }
-                severity
-              }
-              number
-            }
-            pageInfo {
-              endCursor
-              hasNextPage
-            }
+      	  vulnerabilityAlerts(first: 5) {
+            ...data
           }
         }
       }
+
+      #{ALERTS_FRAGMENT}
+    GRAPHQL
+
+    AlertsQueryNext = Github::CLIENT.parse <<-GRAPHQL
+      query($name: String!, $cursor: String!) {
+        repository(name: $name, owner: "GetJobber") {
+      	  vulnerabilityAlerts(first: 5, after: $cursor) {
+            ...data
+          }
+        }
+      }
+      #{ALERTS_FRAGMENT}
     GRAPHQL
 
     def get_dependabot_findings(parsed_results, meta_data, github_name, ecosystem)
@@ -109,7 +96,7 @@ module LibraryVersionAnalysis
     end
 
     def find_alerts(github_name, ecosystem)
-      response = Github::Client.query(AlertsQuery, variables: { name: github_name })
+      response = Github::CLIENT.query(AlertsQuery, variables: { name: github_name })
 
       alerts = {}
 
@@ -119,7 +106,7 @@ module LibraryVersionAnalysis
         end_cursor = add_results(response.data.repository.vulnerability_alerts, alerts, ecosystem)
         end_cursor = nil # Until github issue is resolved.
         until end_cursor.nil?
-          response = Github::Client.query(AlertsQueryNext, variables: { name: github_name, cursor: end_cursor })
+          response = Github::CLIENT.query(AlertsQueryNext, variables: { name: github_name, cursor: end_cursor })
           end_cursor = add_results(response.data.repository.vulnerability_alerts, alerts, ecosystem)
         end
       end
@@ -129,11 +116,11 @@ module LibraryVersionAnalysis
 
     def add_results(alerts, results, target_ecosystem)
       alerts.nodes.each do |alert|
-        databaseId = alert.security_vulnerability.advisory.database_id
+        database_id = alert.security_vulnerability.advisory.database_id
         ecosystem = alert.security_vulnerability.package.ecosystem
 
-        if ecosystem == target_ecosystem && !results.has_key?(databaseId)
-          results[databaseId] = {
+        if ecosystem == target_ecosystem && !results.has_key?(database_id)
+          results[database_id] = {
             package: alert.security_vulnerability.package.name,
             identifiers: alert.security_vulnerability.advisory.identifiers.map(&:value),
             severity: alert.security_vulnerability.severity,

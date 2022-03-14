@@ -1,6 +1,6 @@
 module LibraryVersionAnalysis
   class Online
-    def get_versions(_)
+    def get_versions
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?

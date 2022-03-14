@@ -1,7 +1,7 @@
 module LibraryVersionAnalysis
   class Mobile
-    def get_versions(path)
-      libyear_results = run_libyear(path)
+    def get_versions
+      libyear_results = run_libyear
       if libyear_results.nil?
         warn "Running libyear produced no results. Exiting"
         exit -1
@@ -9,14 +9,14 @@ module LibraryVersionAnalysis
 
       parsed_results, meta_data = parse_libyear(libyear_results)
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "NPM")
-      add_ownerships(path, parsed_results)
+      add_ownerships(parsed_results)
 
       return parsed_results, meta_data
     end
 
     private
 
-    def run_libyear(path)
+    def run_libyear
       # Ideally, we'd run the "npx libyear --json" command from here and capture the results with Open3.
       # Works great in dev. On Circle, it gets sigkilled with a 137 error. That usually means
       # out-of-memory, but I have a suspicion in this case it is exceeding the open pipe limit.
@@ -25,7 +25,7 @@ module LibraryVersionAnalysis
       # As a work-around, updated circleCi config to run libyear before analyze and then just read the output (JZ)
 
       # Get libyear results
-      results_file = "#{path}/libyear_report.txt"
+      results_file = "libyear_report.txt"
 
       results = read_file(results_file, true)
 
@@ -42,8 +42,8 @@ module LibraryVersionAnalysis
       return File.read(path)
     end
 
-    def run_libyear_open3(path)
-      cmd = "cd #{path}; npx libyear --json"
+    def run_libyear_open3
+      cmd = "npx libyear --json"
       results, captured_err, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
@@ -52,8 +52,6 @@ module LibraryVersionAnalysis
 
         return nil
       end
-
-      # results = `#{cmd}`
 
       return results
     end
@@ -106,9 +104,9 @@ module LibraryVersionAnalysis
       drift
     end
 
-    def add_ownerships(path, parsed_results)
+    def add_ownerships(parsed_results)
       # Get ownerships
-      package_file = "#{path}/package.json"
+      package_file = "package.json"
       file = read_file(package_file, false)
       ownerships = {}
       package_data = JSON.parse(file)
@@ -117,7 +115,7 @@ module LibraryVersionAnalysis
         parsed_results[name].owner = owner if parsed_results.has_key?(name)
       end
 
-      transitive_mappings = build_transitive_mapping(path, parsed_results)
+      transitive_mappings = build_transitive_mapping(parsed_results)
 
       # 2nd pass for transitive ownership
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
@@ -134,9 +132,9 @@ module LibraryVersionAnalysis
       end
     end
 
-    def build_transitive_mapping(path, parsed_results)
+    def build_transitive_mapping(parsed_results)
       mappings = {}
-      results = run_npm_list(path)
+      results = run_npm_list
 
       # ├ ─ ┬    │ ├ ─ ─   │ │ └ ─ ─ These are the symbols used, keep here for now
       parent = "undefined"
@@ -157,8 +155,8 @@ module LibraryVersionAnalysis
       return mappings
     end
 
-    def run_npm_list(path)
-      cmd = "cd #{path}; npm list"
+    def run_npm_list
+      cmd = "npm list"
       results, captured_err, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
