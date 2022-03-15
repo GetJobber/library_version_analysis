@@ -34,8 +34,8 @@ module LibraryVersionAnalysis
 
     def read_file(path, check_time)
       # With this new file-read approach, we could be using old data. protect against that.
-      if !File.exist?(path) || (check_time && Time.now.utc - File.mtime(path) > 300) # 5 minutes
-        warn "Either could not find #{File.expand_path(path)} or it is more than 5 minutes old. Run \"npx libyear --json > libyear_report.txt\""
+      if !File.exist?(path) || (check_time && Time.now.utc - File.mtime(path) > 600) # 10 minutes
+        warn "Either could not find #{File.expand_path(path)} or it is more than 10 minutes old. Run \"npx libyear --json > libyear_report.txt\""
         exit -1
       end
 

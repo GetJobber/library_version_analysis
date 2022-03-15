@@ -8,7 +8,7 @@ module LibraryVersionAnalysis
     HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
       def headers(_context)
         {
-          "Authorization" => "Bearer #{ENV['GITHUB_IMPORT_TOKEN']}",
+          "Authorization" => "Bearer #{ENV['GITHUB_API_TOKEN']}",
           "User-Agent" => "Ruby",
         }
       end
