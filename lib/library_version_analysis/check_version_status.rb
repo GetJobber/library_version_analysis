@@ -22,24 +22,7 @@ module LibraryVersionAnalysis
 
   DEV_OUTPUT = true
 
-  # Valid owners. Keep for easy reference:
-  # :api_platform
-  # :core
-  # :enablers
-  # :fintech
-  # :front_end_foundations
-  # :production_engineering
-  # :self_serve
-
   class CheckVersionStatus
-    # Useful during dev
-    # ONLINE_OVERRIDE = true
-    # ONLINE_OVERRIDE = false
-    # ONLINE_NODE_OVERRIDE = true
-    # ONLINE_NODE_OVERRIDE = false
-    # MOBILE_OVERRIDE = true
-    # MOBILE_OVERRIDE = false
-
     def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
       c = CheckVersionStatus.new
       mode_results = c.go(spreadsheet_id, online == "true", online_node == "true", mobile == "true")
@@ -50,13 +33,8 @@ module LibraryVersionAnalysis
     def go(spreadsheet_id, online, online_node, mobile)
       puts "Check Version" if DEV_OUTPUT
 
-      # useful during dev
-      online = ONLINE_OVERRIDE if defined?(ONLINE_OVERRIDE)
-      online_node = ONLINE_NODE_OVERRIDE if defined?(ONLINE_NODE_OVERRIDE)
-      mobile = MOBILE_OVERRIDE if defined?(MOBILE_OVERRIDE)
-
-      meta_data_online, mode_online = go_online(spreadsheet_id) if online
       meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id) if online_node
+      meta_data_online, mode_online = go_online(spreadsheet_id) if online
       meta_data_mobile, mode_mobile = go_mobile(spreadsheet_id) if mobile
 
       print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
@@ -73,7 +51,7 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id)
       puts "  online" if DEV_OUTPUT
       online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:M", spreadsheet_id,"ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:M", spreadsheet_id, "ONLINE")
 
       return meta_data_online, mode_online
     end
@@ -112,7 +90,7 @@ module LibraryVersionAnalysis
     end
 
     def spreadsheet_data(results, source)
-      header_row = %w(name owner source current_version current_version_date latest_version latest_version_date major minor patch age cvss note)
+      header_row = %w(name owner source current_version current_version_date latest_version latest_version_date major minor patch age cve note)
       data = [header_row]
 
       data << ["Updated: #{Time.now.utc}"]

@@ -60,11 +60,7 @@ module LibraryVersionAnalysis
       all_versions = {}
       data = JSON.parse(results)
 
-      meta_data = MetaData.new
-      meta_data.total_age = 0
-      meta_data.total_major = 0
-      meta_data.total_minor = 0
-      meta_data.total_patch = 0
+      meta_data = create_blank_metadata
 
       data.each do |line|
         drift = find_drift(line).round(1)
@@ -94,6 +90,15 @@ module LibraryVersionAnalysis
       return all_versions, meta_data
     end
 
+    def create_blank_metadata
+      meta_data = MetaData.new
+      meta_data.total_age = 0
+      meta_data.total_major = 0
+      meta_data.total_minor = 0
+      meta_data.total_patch = 0
+      meta_data
+    end
+
     def find_drift(line)
       drift = line["drift"]
       if drift.nil?
@@ -106,22 +111,19 @@ module LibraryVersionAnalysis
 
     def add_ownerships(parsed_results)
       # Get ownerships
-      package_file = "package.json"
-      file = read_file(package_file, false)
-      ownerships = {}
-      package_data = JSON.parse(file)
-      package_data["ownerships"].each do |name, owner|
-        ownerships[name] = owner
-        parsed_results[name].owner = owner if parsed_results.has_key?(name)
-      end
-
-      transitive_mappings = build_transitive_mapping(parsed_results)
+      add_package_json_ownerships(parsed_results)
 
       # 2nd pass for transitive ownership
+      add_transitive_ownerships(parsed_results)
+    end
+
+    def add_transitive_ownerships(parsed_results)
+      transitive_mappings = build_transitive_mapping(parsed_results)
+
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
         parent = transitive_mappings[name]
 
-        next if parent.nil? # This can ha
+        next if parent.nil?
 
         if parsed_results[parent].owner == :unknown
           line_data.owner = :transitive_unspecified # note, this order is important, line_data and parsed_result[parent] could be the same thing
@@ -129,6 +131,17 @@ module LibraryVersionAnalysis
         else
           line_data.owner = parsed_results[parent].owner
         end
+      end
+    end
+
+    def add_package_json_ownerships(parsed_results)
+      package_file = "package.json"
+      file = read_file(package_file, false)
+      ownerships = {}
+      package_data = JSON.parse(file)
+      package_data["ownerships"].each do |name, owner|
+        ownerships[name] = owner
+        parsed_results[name].owner = owner if parsed_results.has_key?(name)
       end
     end
 

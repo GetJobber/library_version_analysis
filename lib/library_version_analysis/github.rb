@@ -5,20 +5,19 @@ module LibraryVersionAnalysis
   class Github
     URL = "https://api.github.com/graphql".freeze
 
-    HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
-      def headers(_context)
-        {
-          "Authorization" => "Bearer #{ENV['GITHUB_API_TOKEN']}",
-          "User-Agent" => "Ruby",
-        }
+    unless ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
+      HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
+        def headers(_context)
+          {
+            "Authorization" => "Bearer #{ENV['GITHUB_READ_API_TOKEN']}",
+            "User-Agent" => "Ruby",
+          }
+        end
       end
-    end
-    SCHEMA = GraphQL::Client.load_schema(HTTP_ADAPTER)
-    CLIENT = GraphQL::Client.new(schema: SCHEMA, execute: HTTP_ADAPTER)
+      SCHEMA = GraphQL::Client.load_schema(HTTP_ADAPTER)
+      CLIENT = GraphQL::Client.new(schema: SCHEMA, execute: HTTP_ADAPTER)
 
-    def initialize; end
-
-    ALERTS_FRAGMENT = <<-GRAPHQL.freeze
+      ALERTS_FRAGMENT = <<-GRAPHQL.freeze
       fragment data on RepositoryVulnerabilityAlertConnection {
         totalCount
         nodes {
@@ -43,9 +42,9 @@ module LibraryVersionAnalysis
           hasNextPage
         }
       }
-    GRAPHQL
+      GRAPHQL
 
-    AlertsQuery = Github::CLIENT.parse <<-GRAPHQL
+      AlertsQuery = Github::CLIENT.parse <<-GRAPHQL
       query($name: String!) {
         repository(name: $name, owner: "GetJobber") {
       	  vulnerabilityAlerts(first: 100) {
@@ -55,9 +54,9 @@ module LibraryVersionAnalysis
       }
 
       #{ALERTS_FRAGMENT}
-    GRAPHQL
+      GRAPHQL
 
-    AlertsQueryNext = Github::CLIENT.parse <<-GRAPHQL
+      AlertsQueryNext = Github::CLIENT.parse <<-GRAPHQL
       query($name: String!, $cursor: String!) {
         repository(name: $name, owner: "GetJobber") {
       	  vulnerabilityAlerts(first: 100, after: $cursor) {
@@ -66,7 +65,10 @@ module LibraryVersionAnalysis
         }
       }
       #{ALERTS_FRAGMENT}
-    GRAPHQL
+      GRAPHQL
+    end
+
+    def initialize; end
 
     def get_dependabot_findings(parsed_results, meta_data, github_name, ecosystem)
       github = LibraryVersionAnalysis::Github.new
