@@ -125,8 +125,6 @@ module LibraryVersionAnalysis
 
         next if parent.nil?
 
-        binding.pry if parsed_results[parent].nil?
-
         if parsed_results[parent].owner == :unknown
           line_data.owner = :transitive_unspecified # note, this order is important, line_data and parsed_result[parent] could be the same thing
           parsed_results[parent].owner = :unspecified # in which case, we want :unspecified
