@@ -8,7 +8,7 @@ module LibraryVersionAnalysis
       end
 
       parsed_results, meta_data = parse_libyear(libyear_results)
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "NPM")
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber-mobile", "NPM")
       add_ownerships(parsed_results)
 
       return parsed_results, meta_data
@@ -152,15 +152,22 @@ module LibraryVersionAnalysis
       # ├ ─ ┬    │ ├ ─ ─   │ │ └ ─ ─ These are the symbols used, keep here for now
       parent = "undefined"
 
+      last_parent = false
       results.each_line do |line|
         scan_result = line.scan(/.* (.*)@(.*)/)
         next if scan_result.nil? || scan_result.empty?
 
         name = scan_result[0][0]
+
         current_version = scan_result[0][1]
         parsed_results[name].current_version = current_version unless parsed_results[name].nil?
 
-        parent = name if !name.nil? && (line.count("│").zero? || line[0] == "├")
+        if line.start_with?("└")
+          last_parent = true
+          parent = name
+        end
+
+        parent = name if !name.nil? && !last_parent && (line.count("│").zero? || line[0] == "├")
 
         mappings[name] = parent unless name.nil?
       end

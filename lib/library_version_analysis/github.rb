@@ -106,7 +106,6 @@ module LibraryVersionAnalysis
         raise QueryExecutionError, response.errors[:data].join(", ")
       else
         end_cursor = add_results(response.data.repository.vulnerability_alerts, alerts, ecosystem)
-        end_cursor = nil # Until github issue is resolved.
         until end_cursor.nil?
           response = Github::CLIENT.query(AlertsQueryNext, variables: { name: github_name, cursor: end_cursor })
           end_cursor = add_results(response.data.repository.vulnerability_alerts, alerts, ecosystem)
