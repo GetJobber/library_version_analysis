@@ -1,5 +1,5 @@
 module LibraryVersionAnalysis
-  class Mobile
+  class Npm
     def get_versions
       libyear_results = run_libyear
       if libyear_results.nil?
