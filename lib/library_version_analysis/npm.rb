@@ -1,5 +1,9 @@
 module LibraryVersionAnalysis
-  class Mobile
+  class Npm
+    def initialize(github_repo)
+      @github_repo = github_repo
+    end
+
     def get_versions
       libyear_results = run_libyear
       if libyear_results.nil?
@@ -8,7 +12,7 @@ module LibraryVersionAnalysis
       end
 
       parsed_results, meta_data = parse_libyear(libyear_results)
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber-mobile", "NPM")
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, @github_repo, "NPM")
       add_ownerships(parsed_results)
 
       return parsed_results, meta_data

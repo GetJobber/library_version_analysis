@@ -1,6 +1,6 @@
 Status = Struct.new(:exitstatus)
 
-RSpec.describe LibraryVersionAnalysis::Mobile do
+RSpec.describe LibraryVersionAnalysis::Npm do
   let(:npxfile) do
     <<~DOC
       [
@@ -61,7 +61,7 @@ RSpec.describe LibraryVersionAnalysis::Mobile do
 
   context "when mobile" do
     subject do
-      analyzer = LibraryVersionAnalysis::Mobile.new
+      analyzer = LibraryVersionAnalysis::Npm.new
       allow(analyzer).to receive(:read_file).with("./libyear_report.txt", true).and_return(npxfile)
       allow(analyzer).to receive(:read_file).with("./package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
