@@ -6,6 +6,7 @@ require "pry"
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
+    :parent,
     :current_version,
     :current_version_date,
     :latest_version,
@@ -51,7 +52,7 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id)
       puts "  online" if DEV_OUTPUT
       online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:O", spreadsheet_id, "ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:P", spreadsheet_id, "ONLINE")
 
       return meta_data_online, mode_online
     end
@@ -59,7 +60,7 @@ module LibraryVersionAnalysis
     def go_online_node(spreadsheet_id)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new("Jobber")
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:O", spreadsheet_id, "ONLINE NODE")
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:P", spreadsheet_id, "ONLINE NODE")
 
       return meta_data_online_node, mode_online_node
     end
@@ -67,7 +68,7 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id)
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new("Jobber-mobile")
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:O", spreadsheet_id, "MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:P", spreadsheet_id, "MOBILE")
 
       return meta_data_mobile, mode_mobile
     end
@@ -90,7 +91,7 @@ module LibraryVersionAnalysis
     end
 
     def spreadsheet_data(results, source)
-      header_row = %w(name owner source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity)
+      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity)
       data = [header_row]
 
       data << ["Updated: #{Time.now.utc}"]
@@ -99,6 +100,7 @@ module LibraryVersionAnalysis
         data << [
           name,
           row.owner,
+          row.parent,
           source,
           row.current_version,
           row.current_version_date,
@@ -110,8 +112,8 @@ module LibraryVersionAnalysis
           row.age,
           row.cvss,
           '=IFERROR(concatenate(vlookup(indirect("A" & row()),Notes!A:E,3,false), ":", concatenate(vlookup(indirect("A" & row()),Notes!A:E,4,false))))',
-          '=IFERROR(vlookup(indirect("A" & row()),Notes!A:E,3,false), IFERROR(trim(LEFT(INDIRECT("L" & row()), SEARCH("[", INDIRECT("L" & row()))-1))))',
-          '=IFERROR(vlookup(indirect("N" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
+          '=IFERROR(vlookup(indirect("A" & row()),Notes!A:E,3,false), IFERROR(trim(LEFT(INDIRECT("M" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
+          '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
         ]
       end
 

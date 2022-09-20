@@ -171,11 +171,13 @@ module LibraryVersionAnalysis
 
           if parsed_results[parent_name].nil? && up_to_date_ownership.has_key?(parent_name)
             line_data.owner = up_to_date_ownership[parent_name]
+            line_data.parent = parent_name
           elsif parsed_results[parent_name].nil? || parsed_results[parent_name].owner == :unknown || parsed_results[parent_name].owner == :unspecified
             line_data.owner = :transitive_unspecified
           else
             parent_owner = parsed_results[parent_name].owner
             line_data.owner = parent_owner
+            line_data.parent = parent_name
           end
         else
           line_data.owner = :unspecified
@@ -210,6 +212,7 @@ module LibraryVersionAnalysis
       special_cases.each do |name, owner|
         if parsed_results.has_key?(name.to_s)
           parsed_results[name.to_s].owner = owner if parsed_results.has_key?(name.to_s)
+          parsed_results[name.to_s].parent = "Rails"
         else
           parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0)
         end

@@ -134,6 +134,7 @@ module LibraryVersionAnalysis
           parsed_results[parent].owner = :unspecified # in which case, we want :unspecified
         else
           line_data.owner = parsed_results[parent].owner
+          line_data.parent = parent
         end
       end
     end
