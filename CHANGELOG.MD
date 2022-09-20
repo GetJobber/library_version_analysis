@@ -6,3 +6,6 @@
 
 1.1.1
     bugfix: Only include OPEN CVEs
+
+1.2.1
+    added parent column

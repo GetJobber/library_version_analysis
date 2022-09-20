@@ -6,6 +6,7 @@ require "pry"
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
+    :parent,
     :current_version,
     :current_version_date,
     :latest_version,
@@ -90,7 +91,7 @@ module LibraryVersionAnalysis
     end
 
     def spreadsheet_data(results, source)
-      header_row = %w(name owner source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity)
+      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity)
       data = [header_row]
 
       data << ["Updated: #{Time.now.utc}"]
@@ -99,6 +100,7 @@ module LibraryVersionAnalysis
         data << [
           name,
           row.owner,
+          row.parent,
           source,
           row.current_version,
           row.current_version_date,
@@ -110,8 +112,8 @@ module LibraryVersionAnalysis
           row.age,
           row.cvss,
           '=IFERROR(concatenate(vlookup(indirect("A" & row()),Notes!A:E,3,false), ":", concatenate(vlookup(indirect("A" & row()),Notes!A:E,4,false))))',
-          '=IFERROR(vlookup(indirect("A" & row()),Notes!A:E,3,false), IFERROR(trim(LEFT(INDIRECT("L" & row()), SEARCH("[", INDIRECT("L" & row()))-1))))',
-          '=IFERROR(vlookup(indirect("N" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
+          '=IFERROR(vlookup(indirect("A" & row()),Notes!A:E,3,false), IFERROR(trim(LEFT(INDIRECT("M" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
+          '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
         ]
       end
 
