@@ -52,7 +52,7 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id)
       puts "  online" if DEV_OUTPUT
       online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:O", spreadsheet_id, "ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:P", spreadsheet_id, "ONLINE")
 
       return meta_data_online, mode_online
     end
@@ -60,7 +60,7 @@ module LibraryVersionAnalysis
     def go_online_node(spreadsheet_id)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new("Jobber")
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:O", spreadsheet_id, "ONLINE NODE")
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:P", spreadsheet_id, "ONLINE NODE")
 
       return meta_data_online_node, mode_online_node
     end
@@ -68,7 +68,7 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id)
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new("Jobber-mobile")
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:O", spreadsheet_id, "MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:P", spreadsheet_id, "MOBILE")
 
       return meta_data_mobile, mode_mobile
     end
