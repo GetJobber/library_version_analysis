@@ -9,3 +9,6 @@
 
 1.2.1
     added parent column
+
+1.3.0
+    Changes to support adding CVE column in Notes

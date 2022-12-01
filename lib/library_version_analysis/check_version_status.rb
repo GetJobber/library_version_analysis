@@ -111,8 +111,8 @@ module LibraryVersionAnalysis
           row.patch,
           row.age,
           row.cvss,
-          '=IFERROR(concatenate(vlookup(indirect("A" & row()),Notes!A:E,3,false), ":", concatenate(vlookup(indirect("A" & row()),Notes!A:E,4,false))))',
-          '=IFERROR(vlookup(indirect("A" & row()),Notes!A:E,3,false), IFERROR(trim(LEFT(INDIRECT("M" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
+          '=IFERROR(concatenate(vlookup(indirect("M" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("M" & row()),Notes!A:E,5,false))))',
+          '=IFERROR(vlookup(indirect("M" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("M" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
           '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
         ]
       end
