@@ -12,3 +12,7 @@
 
 1.3.0
     Changes to support adding CVE column in Notes
+
+1.4.0
+    Added Slack notifications on new Dependabot issues
+    Added equations to handle notes for non-CVEs

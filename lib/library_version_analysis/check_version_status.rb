@@ -3,6 +3,18 @@ require "google/apis/sheets_v4"
 require "open3"
 require "pry"
 
+class Fixnum
+  SECONDS_IN_HOUR = 60 * 60
+
+  def hours
+    self * SECONDS_IN_HOUR
+  end
+
+  def ago
+    Time.now - self
+  end
+end
+
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
@@ -16,6 +28,8 @@ module LibraryVersionAnalysis
     :minor,
     :patch,
     :age,
+    :dependabot_published_at,
+    :dependabot_permalink,
     keyword_init: true
   )
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
@@ -52,7 +66,7 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id)
       puts "  online" if DEV_OUTPUT
       online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:P", spreadsheet_id, "ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, "ONLINE")
 
       return meta_data_online, mode_online
     end
@@ -60,7 +74,7 @@ module LibraryVersionAnalysis
     def go_online_node(spreadsheet_id)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new("Jobber")
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:P", spreadsheet_id, "ONLINE NODE")
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, "ONLINE NODE")
 
       return meta_data_online_node, mode_online_node
     end
@@ -68,13 +82,15 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id)
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new("Jobber-mobile")
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:P", spreadsheet_id, "MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, "MOBILE")
 
       return meta_data_mobile, mode_mobile
     end
 
     def get_version_summary(parser, range, spreadsheet_id, source)
       parsed_results, meta_data = parser.get_versions
+
+      notify(parsed_results)
 
       mode = get_mode_summary(parsed_results, meta_data)
       data = spreadsheet_data(parsed_results, source)
@@ -91,7 +107,7 @@ module LibraryVersionAnalysis
     end
 
     def spreadsheet_data(results, source)
-      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity)
+      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
       data = [header_row]
 
       data << ["Updated: #{Time.now.utc}"]
@@ -111,9 +127,10 @@ module LibraryVersionAnalysis
           row.patch,
           row.age,
           row.cvss,
-          '=IFERROR(concatenate(vlookup(indirect("M" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("M" & row()),Notes!A:E,5,false))))',
-          '=IFERROR(vlookup(indirect("M" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("M" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
+          '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
+          '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
           '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
+          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
         ]
       end
 
@@ -166,6 +183,17 @@ module LibraryVersionAnalysis
       mode_summary.one_number = one_number(mode_summary)
 
       return mode_summary
+    end
+
+    def notify(results)
+      results.each do |hash_line|
+        line = hash_line[1]
+
+        if (!line.dependabot_published_at.nil? && line.dependabot_published_at > 25.hours.ago )
+          message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.cvss}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
+          SlackNotify.notify(message, "security-alerts")
+        end
+      end
     end
 
     def unowned_needs_attention?(line)

@@ -32,10 +32,13 @@ module LibraryVersionAnalysis
                 type
                 value
               }
+              publishedAt
+              permalink
             }
             severity
           }
           number
+          createdAt
         }
         pageInfo {
           endCursor
@@ -78,6 +81,7 @@ module LibraryVersionAnalysis
 
       alerts.each do |_, alert|
         package = alert[:package]
+
         cvss = "#{alert[:severity]} #{alert[:identifiers]}"
         if parsed_results.has_key?(package)
           parsed_results[package].cvss = cvss
@@ -88,8 +92,11 @@ module LibraryVersionAnalysis
             minor: 0,
             patch: 0,
             age: 0,
-            cvss: cvss
+            cvss: cvss,
+            dependabot_published_at: Time.parse(alert[:published_at]),
+            dependabot_permalink: alert[:permalink]
           )
+
           parsed_results[package] = vv
         end
 
@@ -125,6 +132,8 @@ module LibraryVersionAnalysis
             package: alert.security_vulnerability.package.name,
             identifiers: alert.security_vulnerability.advisory.identifiers.map(&:value),
             severity: alert.security_vulnerability.severity,
+            published_at: alert.security_vulnerability.advisory.published_at,
+            permalink: alert.security_vulnerability.advisory.permalink
           }
         end
       end
