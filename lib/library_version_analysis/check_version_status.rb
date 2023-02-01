@@ -3,18 +3,6 @@ require "google/apis/sheets_v4"
 require "open3"
 require "pry"
 
-class Fixnum
-  SECONDS_IN_HOUR = 60 * 60
-
-  def hours
-    self * SECONDS_IN_HOUR
-  end
-
-  def ago
-    Time.now - self
-  end
-end
-
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
@@ -186,10 +174,12 @@ module LibraryVersionAnalysis
     end
 
     def notify(results)
+      recent_time = Time.now - 25 * 60 * 60
+
       results.each do |hash_line|
         line = hash_line[1]
 
-        if (!line.dependabot_published_at.nil? && line.dependabot_published_at > 25.hours.ago )
+        if (!line.dependabot_published_at.nil? && line.dependabot_published_at > recent_time )
           message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.cvss}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
           SlackNotify.notify(message, "security-alerts")
         end
