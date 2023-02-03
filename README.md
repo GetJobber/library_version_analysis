@@ -1,8 +1,8 @@
 # LibraryVersionAnalysis
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/library_version_analysis`. To experiment with that code, run `bin/console` for an interactive prompt.
+This is unmaintained library being open sourced for others to learn and fork from.
 
-TODO: Delete this and the text above, and describe your gem
+Patches will not be accepted. Issues are not likely to be responded to.
 
 ## Installation
 
@@ -42,8 +42,7 @@ library_version_analysis/run.sh
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/library_version_analysis.
-
+Not supported
 
 ## License
 
