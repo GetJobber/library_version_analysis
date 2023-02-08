@@ -16,7 +16,7 @@ module LibraryVersionAnalysis
     :minor,
     :patch,
     :age,
-    :dependabot_published_at,
+    :dependabot_created_at,
     :dependabot_permalink,
     keyword_init: true
   )
@@ -178,8 +178,7 @@ module LibraryVersionAnalysis
 
       results.each do |hash_line|
         line = hash_line[1]
-
-        if (!line.dependabot_published_at.nil? && line.dependabot_published_at > recent_time )
+        if (!line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time )
           message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.cvss}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
           SlackNotify.notify(message, "security-alerts")
         end

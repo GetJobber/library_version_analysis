@@ -81,7 +81,6 @@ module LibraryVersionAnalysis
 
       alerts.each do |_, alert|
         package = alert[:package]
-
         cvss = "#{alert[:severity]} #{alert[:identifiers]}"
         if parsed_results.has_key?(package)
           parsed_results[package].cvss = cvss
@@ -93,12 +92,13 @@ module LibraryVersionAnalysis
             patch: 0,
             age: 0,
             cvss: cvss,
-            dependabot_published_at: Time.parse(alert[:published_at]),
-            dependabot_permalink: alert[:permalink]
           )
 
           parsed_results[package] = vv
         end
+
+        parsed_results[package].dependabot_created_at = Time.parse(alert[:created_at])
+        parsed_results[package].dependabot_permalink = alert[:permalink]
 
         meta_data.total_cvss = meta_data.total_cvss + 1
       end
@@ -132,7 +132,7 @@ module LibraryVersionAnalysis
             package: alert.security_vulnerability.package.name,
             identifiers: alert.security_vulnerability.advisory.identifiers.map(&:value),
             severity: alert.security_vulnerability.severity,
-            published_at: alert.security_vulnerability.advisory.published_at,
+            created_at: alert.created_at,
             permalink: alert.security_vulnerability.advisory.permalink
           }
         end

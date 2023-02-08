@@ -16,3 +16,6 @@
 1.4.0
     Added Slack notifications on new Dependabot issues
     Added equations to handle notes for non-CVEs
+
+1.4.1
+    Fixed to use created_at date for finding new alerts
