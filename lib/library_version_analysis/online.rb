@@ -32,7 +32,7 @@ module LibraryVersionAnalysis
     def run_libyear(param)
       # there is a bug in libyear (which I'm proposing a fix for) that makes -all fail, so
       # we need to run --libyar and --releases separately
-      cmd = "bundle install; libyear-bundler #{param}"
+      cmd = "libyear-bundler #{param}"
       puts ("libyear-bundler cmd #{cmd}")
 
       results, captured_err, status = Open3.capture3(cmd)
