@@ -32,12 +32,15 @@ module LibraryVersionAnalysis
     def run_libyear(param)
       # there is a bug in libyear (which I'm proposing a fix for) that makes -all fail, so
       # we need to run --libyar and --releases separately
-      cmd = "bundle exec libyear-bundler #{param}"
+      cmd = "libyear-bundler #{param}"
+      puts ("libyear-bundler cmd #{cmd}")
+
       results, captured_err, status = Open3.capture3(cmd)
+      puts ("libyear-bundler status #{status}")
 
       if status.exitstatus != 0
-        warn "status: #{status}"
-        warn "captured_err: #{captured_err}"
+        warn "run_libyer #{param} status: #{status}"
+        warn "run_libyer #{param} captured_err: #{captured_err}"
 
         return nil
       end
@@ -155,11 +158,13 @@ module LibraryVersionAnalysis
     def add_ownership_from_transitive(parsed_results, up_to_date_ownership)
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
         cmd = "bundle why #{name}"
+        puts ("add-ownership cmd #{cmd}")
         results, captured_err, status = Open3.capture3(cmd)
+        puts ("add-ownership status #{status}")
 
         if status.exitstatus != 0
-          warn "status: #{status}"
-          warn "captured_err: #{captured_err}"
+          warn "bundle why status: #{status}"
+          warn "bundle why captured_err: #{captured_err}"
         end
 
         if results.include?("->")
