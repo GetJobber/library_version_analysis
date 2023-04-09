@@ -36,7 +36,7 @@ jgem :enablers, "library_version_analysis", path: "/Users/johnz/source/library_v
 
 then: bundle update --conservative library_version_analysis
 ln -s ../library_version_analysis .
-source library_version_anaysis/version.sh
+source library_version_analysis/version.sh
 library_version_analysis/run.sh
 
 

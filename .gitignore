@@ -12,3 +12,6 @@
 .rspec_status
 *.iml
 Gemfile.lock
+server_ruby
+server_rubyjet
+server_ssh

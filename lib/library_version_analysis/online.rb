@@ -20,6 +20,20 @@ module LibraryVersionAnalysis
       return parsed_results, meta_data
     end
 
+    def get_all_dependencies
+      all_dependencies = []
+
+      parser = Bundler::LockfileParser.new(Bundler.read_file("Gemfile.lock"))
+      parser.specs.each do |spec|
+        name = spec.name
+        version = spec.version.to_s
+
+        all_dependencies.push({name: name, version: version})
+      end
+
+      return { libraries: all_dependencies }
+    end
+
     private
 
     def check_for(regex, line)

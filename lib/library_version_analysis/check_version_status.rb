@@ -2,6 +2,7 @@ require "googleauth"
 require "google/apis/sheets_v4"
 require "open3"
 require "pry"
+require "httparty"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -23,7 +24,7 @@ module LibraryVersionAnalysis
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
 
-  DEV_OUTPUT = false
+  DEV_OUTPUT = true
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
@@ -76,6 +77,12 @@ module LibraryVersionAnalysis
     end
 
     def get_version_summary(parser, range, spreadsheet_id, source)
+      if true
+        # todo naarok only do this if update DB set
+        all_dependency_parsed_results = parser.get_all_dependencies
+        update_database(all_dependency_parsed_results)
+      end
+
       parsed_results, meta_data = parser.get_versions
 
       notify(parsed_results)
@@ -92,6 +99,13 @@ module LibraryVersionAnalysis
     # represents a single number summary of the state of the libraries
     def one_number(mode_summary)
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
+    end
+
+    def update_database(json_data)
+      x = json_data.to_json
+
+      result = HTTParty.post("http://localhost:4000/libraries/upload", :body => x, :headers => { 'Content-Type' => 'application/json', 'Accept' => 'application/json' } )
+      # todo naarok do something with result. result.code is http_status
     end
 
     def spreadsheet_data(results, source)
@@ -126,6 +140,8 @@ module LibraryVersionAnalysis
     end
 
     def update_spreadsheet(spreadsheet_id, range_name, results)
+      return #TODO remove naarok
+
       service = Google::Apis::SheetsV4::SheetsService.new
       service.authorization = ::Google::Auth::ServiceAccountCredentials.make_creds(scope: "https://www.googleapis.com/auth/spreadsheets")
 
