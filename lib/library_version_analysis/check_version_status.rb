@@ -27,7 +27,7 @@ module LibraryVersionAnalysis
   DEV_OUTPUT = true
 
   class CheckVersionStatus
-    def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
+    def self.run(spreadsheet_id:, online: "true", online_node: "false", mobile: "false")
       c = CheckVersionStatus.new
       mode_results = c.go(spreadsheet_id, online == "true", online_node == "true", mobile == "true")
 
@@ -77,15 +77,18 @@ module LibraryVersionAnalysis
     end
 
     def get_version_summary(parser, range, spreadsheet_id, source)
-      if true
-        # todo naarok only do this if update DB set
-        all_dependency_parsed_results = parser.get_all_dependencies
-        update_database(all_dependency_parsed_results)
-      end
-
       parsed_results, meta_data = parser.get_versions
 
       notify(parsed_results)
+
+      if true
+        # todo naarok only do this if update DB set
+        all_dependency_parsed_results = parser.get_all_dependencies
+        puts "    updating all versions" if DEV_OUTPUT
+        update_database(all_dependency_parsed_results)
+        puts "    updating new versions" if DEV_OUTPUT
+        update_database({ new_versions: parsed_results.map { |k,v| [k, v.to_h] }.to_h })
+      end
 
       mode = get_mode_summary(parsed_results, meta_data)
       data = spreadsheet_data(parsed_results, source)
@@ -104,7 +107,8 @@ module LibraryVersionAnalysis
     def update_database(json_data)
       x = json_data.to_json
 
-      result = HTTParty.post("http://localhost:4000/libraries/upload", :body => x, :headers => { 'Content-Type' => 'application/json', 'Accept' => 'application/json' } )
+      # binding.pry
+      result = HTTParty.post("http://localhost:3200/libraries/upload", :body => x, :headers => { 'Content-Type' => 'application/json', 'Accept' => 'application/json' } )
       # todo naarok do something with result. result.code is http_status
     end
 
