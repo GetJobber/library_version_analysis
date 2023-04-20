@@ -19,3 +19,6 @@
 
 1.4.1
     Fixed to use created_at date for finding new alerts
+
+1.4.2
+    Bumped version of pry
