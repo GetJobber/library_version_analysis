@@ -78,13 +78,13 @@ module LibraryVersionAnalysis
     def get_version_summary(parser, range, spreadsheet_id, source)
       parsed_results, meta_data = parser.get_versions
 
-      notify(parsed_results)
-
       mode = get_mode_summary(parsed_results, meta_data)
       data = spreadsheet_data(parsed_results, source)
 
       puts "    updating spreadsheet" if DEV_OUTPUT
       update_spreadsheet(spreadsheet_id, range, data)
+
+      notify(parsed_results)
 
       return meta_data, mode
     end
@@ -175,6 +175,8 @@ module LibraryVersionAnalysis
 
     def notify(results)
       recent_time = Time.now - 25 * 60 * 60
+
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE # todo This is evil and must be removed when I return
 
       results.each do |hash_line|
         line = hash_line[1]
