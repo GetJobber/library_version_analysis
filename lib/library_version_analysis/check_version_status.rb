@@ -2,6 +2,8 @@ require "googleauth"
 require "google/apis/sheets_v4"
 require "open3"
 require "pry"
+require "uri"
+require "net/https"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -23,7 +25,7 @@ module LibraryVersionAnalysis
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
 
-  DEV_OUTPUT = false
+  DEV_OUTPUT = true
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
@@ -79,12 +81,12 @@ module LibraryVersionAnalysis
       parsed_results, meta_data = parser.get_versions
 
       mode = get_mode_summary(parsed_results, meta_data)
-      data = spreadsheet_data(parsed_results, source)
+      data = server_data(parsed_results, source)
 
-      puts "    updating spreadsheet" if DEV_OUTPUT
-      update_spreadsheet(spreadsheet_id, range, data)
+      puts "    updating server" if DEV_OUTPUT
+      update_server(data)
 
-      notify(parsed_results)
+      # notify(parsed_results)
 
       return meta_data, mode
     end
@@ -94,48 +96,92 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
-    def spreadsheet_data(results, source)
-      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
-      data = [header_row]
+    def server_data(results, source)
+      # libraries: [
+      #   {
+      #     name: "lib1",
+      #     version: "1.2.3"
+      #   },
+      #   {
+      #     name: "lib2",
+      #     version: "3.2.1"
+      #   },
+      # ],
+      #   new_versions: [
+      #   {
+      #     name: "lib1",
+      #     version: "2.2.3",
+      #     major: 1,
+      #     minor: 2,
+      #   },
+      # ]
 
-      data << ["Updated: #{Time.now.utc}"]
+      libraries = []
+      new_versions = []
 
       results.each do |name, row|
-        data << [
-          name,
-          row.owner,
-          row.parent,
-          source,
-          row.current_version,
-          row.current_version_date,
-          row.latest_version,
-          row.latest_version_date,
-          row.major,
-          row.minor,
-          row.patch,
-          row.age,
-          row.cvss,
-          '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
-          '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
-          '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
-          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
-        ]
+        libraries.push({name: name, version: row.current_version})
+        new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor})
       end
 
-      return data
+      results = {
+        libraries: libraries,
+        new_versions: new_versions,
+      }
     end
 
-    def update_spreadsheet(spreadsheet_id, range_name, results)
-      service = Google::Apis::SheetsV4::SheetsService.new
-      service.authorization = ::Google::Auth::ServiceAccountCredentials.make_creds(scope: "https://www.googleapis.com/auth/spreadsheets")
-
-      clear_range = Google::Apis::SheetsV4::BatchClearValuesRequest.new
-      clear_range.ranges = [range_name]
-      service.batch_clear_values(spreadsheet_id, clear_range)
-
-      value_range_object = Google::Apis::SheetsV4::ValueRange.new(range: range_name, values: results)
-      service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
+    def update_server(data)
+      binding.pry
+      uri = URI('http://127.0.0.1:4000/api/libraries/upload')
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
+      req.body = data.to_json
+      res = http.request(req)
+      puts "response #{res.body}"
     end
+
+    # def spreadsheet_data(results, source)
+    #   header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
+    #   data = [header_row]
+    #
+    #   data << ["Updated: #{Time.now.utc}"]
+    #
+    #   results.each do |name, row|
+    #     data << [
+    #       name,
+    #       row.owner,
+    #       row.parent,
+    #       source,
+    #       row.current_version,
+    #       row.current_version_date,
+    #       row.latest_version,
+    #       row.latest_version_date,
+    #       row.major,
+    #       row.minor,
+    #       row.patch,
+    #       row.age,
+    #       row.cvss,
+    #       '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
+    #       '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
+    #       '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
+    #       '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
+    #     ]
+    #   end
+    #
+    #   return data
+    # end
+
+    # def update_spreadsheet(spreadsheet_id, range_name, results)
+    #   service = Google::Apis::SheetsV4::SheetsService.new
+    #   service.authorization = ::Google::Auth::ServiceAccountCredentials.make_creds(scope: "https://www.googleapis.com/auth/spreadsheets")
+    #
+    #   clear_range = Google::Apis::SheetsV4::BatchClearValuesRequest.new
+    #   clear_range.ranges = [range_name]
+    #   service.batch_clear_values(spreadsheet_id, clear_range)
+    #
+    #   value_range_object = Google::Apis::SheetsV4::ValueRange.new(range: range_name, values: results)
+    #   service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
+    # end
 
     def get_mode_summary(results, meta_data)
       mode_summary = ModeSummary.new
