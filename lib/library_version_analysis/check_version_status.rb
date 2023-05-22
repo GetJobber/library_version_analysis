@@ -28,19 +28,24 @@ module LibraryVersionAnalysis
   DEV_OUTPUT = true
 
   class CheckVersionStatus
-    def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
+    def self.run(repository:)
       c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id, online == "true", online_node == "true", mobile == "true")
+      mode_results = c.go(repository: repository)
 
       return c.build_mode_results(mode_results)
     end
 
-    def go(spreadsheet_id, online, online_node, mobile)
+    def go(repository:)
       puts "Check Version" if DEV_OUTPUT
 
-      meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id) if online_node
-      meta_data_online, mode_online = go_online(spreadsheet_id) if online
-      meta_data_mobile, mode_mobile = go_mobile(spreadsheet_id) if mobile
+      # TODO once we fully parameterize this, these go away
+      online = true
+      online_node = false
+      mobile = false
+
+      meta_data_online_node, mode_online_node = go_online_node(repository) if online_node
+      meta_data_online, mode_online = go_online(repository) if online
+      meta_data_mobile, mode_mobile = go_mobile(repository) if mobile
 
       print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
       print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
@@ -53,10 +58,10 @@ module LibraryVersionAnalysis
       }
     end
 
-    def go_online(spreadsheet_id)
+    def go_online(repository)
       puts "  online" if DEV_OUTPUT
       online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, "ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", repository, "ONLINE")
 
       return meta_data_online, mode_online
     end
@@ -77,11 +82,11 @@ module LibraryVersionAnalysis
       return meta_data_mobile, mode_mobile
     end
 
-    def get_version_summary(parser, range, spreadsheet_id, source)
+    def get_version_summary(parser, range, repository, source)
       parsed_results, meta_data = parser.get_versions
 
       mode = get_mode_summary(parsed_results, meta_data)
-      data = server_data(parsed_results, source)
+      data = server_data(parsed_results, repository)
 
       puts "    updating server" if DEV_OUTPUT
       update_server(data)
@@ -96,7 +101,7 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
-    def server_data(results, source)
+    def server_data(results, repository)
       # libraries: [
       #   {
       #     name: "lib1",
@@ -125,13 +130,13 @@ module LibraryVersionAnalysis
       end
 
       results = {
+        repository: repository,
         libraries: libraries,
         new_versions: new_versions,
       }
     end
 
     def update_server(data)
-      binding.pry
       uri = URI('http://127.0.0.1:4000/api/libraries/upload')
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
