@@ -125,7 +125,7 @@ module LibraryVersionAnalysis
       new_versions = []
 
       results.each do |name, row|
-        libraries.push({name: name, version: row.current_version})
+        libraries.push({name: name, owner: row.owner, version: row.current_version})
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor})
       end
 
