@@ -10,8 +10,7 @@ module LibraryVersionAnalysis
 
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
-      # TODO uncomment this
-      # LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
 
       libyear_results = run_libyear("--libyear")
       unless libyear_results.nil?

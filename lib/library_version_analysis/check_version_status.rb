@@ -102,30 +102,15 @@ module LibraryVersionAnalysis
     end
 
     def server_data(results, repository)
-      # libraries: [
-      #   {
-      #     name: "lib1",
-      #     version: "1.2.3"
-      #   },
-      #   {
-      #     name: "lib2",
-      #     version: "3.2.1"
-      #   },
-      # ],
-      #   new_versions: [
-      #   {
-      #     name: "lib1",
-      #     version: "2.2.3",
-      #     major: 1,
-      #     minor: 2,
-      #   },
-      # ]
-
       libraries = []
       new_versions = []
+      vulns = []
 
       results.each do |name, row|
         libraries.push({name: name, owner: row.owner, version: row.current_version})
+        unless row.cvss.nil? || row.cvss == ""
+          vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip})
+        end
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor})
       end
 
@@ -133,6 +118,7 @@ module LibraryVersionAnalysis
         repository: repository,
         libraries: libraries,
         new_versions: new_versions,
+        vulnerabilities: vulns,
       }
     end
 
