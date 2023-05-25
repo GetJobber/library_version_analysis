@@ -30,6 +30,14 @@ After checking out the repo, run `bin/setup` to install dependencies. Then, run 
 
 To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
 
+To run the shell script locally, you must first set up the environment variables in the `.env.local` file.
+To generate the Github token, follow these steps:
+1. From any page on Github, click your icon at the top right, and click Settings
+2. Click Developer Settings in the left panel
+3. Click Personal Access Tokens and then `Tokens Classic`
+4. Click Generate New Token -> Generate new token (classic)
+5. Create a token with the `Repo` scope enabled
+
 ## Jobber Dev
 Update the gemfile to read:
 jgem :enablers, "library_version_analysis", path: "/Users/johnz/source/library_version_analysis"
