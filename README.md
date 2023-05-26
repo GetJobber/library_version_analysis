@@ -37,6 +37,7 @@ To generate the Github token, follow these steps:
 3. Click Personal Access Tokens and then `Tokens Classic`
 4. Click Generate New Token -> Generate new token (classic)
 5. Create a token with the `Repo` scope enabled
+6. Add the token to the `.env.local` file under the `GITHUB_READ_API_TOKEN` entry
 
 ## Jobber Dev
 Update the gemfile to read:
