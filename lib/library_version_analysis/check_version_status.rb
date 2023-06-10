@@ -109,12 +109,12 @@ module LibraryVersionAnalysis
       results.each do |name, row|
         libraries.push({name: name, owner: row.owner, version: row.current_version})
         unless row.cvss.nil? || row.cvss == ""
-          vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip})
+          vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
-        new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor})
+        new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch})
       end
 
-      results = {
+      {
         repository: repository,
         libraries: libraries,
         new_versions: new_versions,
@@ -135,7 +135,7 @@ module LibraryVersionAnalysis
     #   header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
     #   data = [header_row]
     #
-    #   data << ["Updated: #{Time.now.utc}"]
+    #   data << ["Updated: #{Time.now.utc}"]z
     #
     #   results.each do |name, row|
     #     data << [
