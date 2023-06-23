@@ -1,6 +1,7 @@
 module LibraryVersionAnalysis
   class Online
     def get_versions
+      puts("Online running libyear versions")
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
@@ -8,15 +9,25 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
+      puts("Online parsing libyear")
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
+      puts("Online dependabot")
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
 
+      puts("Online running libyear libyear")
       libyear_results = run_libyear("--libyear")
       unless libyear_results.nil?
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
-        add_ownerships(parsed_results)
       end
+
+      puts("Online adding remaining libraries")
+      add_remaining_libraries(parsed_results)
+
+      puts("Online adding ownerships")
+      add_ownerships(parsed_results)
+
+      puts("Online done")
 
       return parsed_results, meta_data
     end
@@ -154,22 +165,13 @@ module LibraryVersionAnalysis
     end
 
     def add_ownership_from_transitive(parsed_results, up_to_date_ownership)
+      spec_set = why_init
+
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
-        cmd = "bundle why #{name}"
-        results, captured_err, status = Open3.capture3(cmd)
+        path = why(name, spec_set)
 
-        if status.exitstatus != 0
-          warn "status: #{status}"
-          warn "captured_err: #{captured_err}"
-        end
-
-        if results.include?("->")
-          scan_result = results.scan(/(.*?) -> .*/)
-
-          next if scan_result.nil? || scan_result.empty?
-
-          parent_name = scan_result[0][0]
-
+        if path.length > 1
+          parent_name = path[0].name
           if parsed_results[parent_name].nil? && up_to_date_ownership.has_key?(parent_name)
             line_data.owner = up_to_date_ownership[parent_name]
             line_data.parent = parent_name
@@ -218,6 +220,70 @@ module LibraryVersionAnalysis
           parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0)
         end
       end
+    end
+
+    def add_remaining_libraries(parsed_results)
+      results = Bundler.load.specs.sort.map(&:full_name)
+      results.each do |line|
+        scan_result = line.scan(/(.*)-(.*)/)
+
+        unless scan_result.nil? || scan_result.empty?
+          name = scan_result[0][0]
+
+          next if parsed_results.key?(name)
+
+          vv = Versionline.new(
+            owner: :unknown,
+            current_version: scan_result[0][1]
+          )
+
+          parsed_results[name] = vv
+        end
+      end
+    end
+
+    # The following comes from https://github.com/jaredbeck/bundler-why/blob/trunk/lib/bundler/why/command.rb, but too
+    # slow as written.
+    # From 5 minutes to 2 seconds
+    def why_init
+      runtime = Bundler.load
+      spec_set = runtime.specs # delegates to Bundler::Definition#specs
+    end
+
+    def why(gem_name, spec_set)
+      spec = find_one_spec_in_set(spec_set, gem_name)
+      traverse(spec_set, spec)
+    end
+
+    # @param spec_set Bundler::SpecSet
+    # @param parent Bundler::StubSpecification
+    # @param path Array[Bundler::StubSpecification]
+    # @void
+    def traverse(spec_set, parent, path = [parent])
+      children = spec_set.select { |s|
+        s.dependencies.any? { |d|
+          d.type == :runtime && d.name == parent.name
+        }
+      }
+      if children.empty?
+        return path
+      else
+        children.each do |child|
+          traverse(spec_set, child, [child].concat(path))
+        end
+      end
+    end
+
+    def find_one_spec_in_set(spec_set, gem_name)
+      specs = spec_set[gem_name]
+      if specs.length != 1
+        warn format(
+               'Expected %s to match exactly 1 spec, got %d',
+               gem_name,
+               specs.length
+             )
+      end
+      specs.first
     end
   end
 end

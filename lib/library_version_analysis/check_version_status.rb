@@ -189,6 +189,8 @@ module LibraryVersionAnalysis
       results.each do |hash_line|
         line = hash_line[1]
 
+        next if line.major.nil? # For libraries added for completeness of set, the following will all be empty
+
         if line.major.positive?
           mode_summary.one_major = mode_summary.one_major + 1 if line.major == 1
           mode_summary.two_major = mode_summary.two_major + 1 if line.major == 2
