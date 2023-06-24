@@ -5,16 +5,27 @@ module LibraryVersionAnalysis
     end
 
     def get_versions
+      puts("mobile running libyear")
+
       libyear_results = run_libyear
       if libyear_results.nil?
         warn "Running libyear produced no results. Exiting"
         exit -1
       end
 
+      puts("mobile parsing libyear")
       parsed_results, meta_data = parse_libyear(libyear_results)
+
+      puts("mobile dependabot")
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, @github_repo, "NPM")
+
+      puts("mobile adding remaining libraries")
+      add_remaining_libraries(parsed_results)
+
+      puts("mobile add ownerships")
       add_ownerships(parsed_results)
 
+      puts("mobile done")
       return parsed_results, meta_data
     end
 
@@ -58,6 +69,29 @@ module LibraryVersionAnalysis
       end
 
       return results
+    end
+
+    def add_remaining_libraries(parsed_results)
+      cmd = "npm list --all"
+      results, captured_err, status = Open3.capture3(cmd)
+      # ignore errors for this. It actually will fail, but we hopefully don't care
+
+      results.each_line do |line|
+        scan_result = line.scan(/^.*?\s([@\w].+)@([.\d]*)/)
+
+        unless scan_result.nil? || scan_result.empty?
+          name = scan_result[0][0]
+
+          next if parsed_results.key?(name)
+
+          vv = Versionline.new(
+            owner: :unknown,
+            current_version: scan_result[0][1]
+          )
+
+          parsed_results[name] = vv
+        end
+      end
     end
 
     def parse_libyear(results)
