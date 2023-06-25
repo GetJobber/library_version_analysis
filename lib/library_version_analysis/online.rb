@@ -93,7 +93,8 @@ module LibraryVersionAnalysis
           latest_version_date: scan[4],
           major: scan[5].to_i,
           minor: scan[6].to_i,
-          patch: scan[7].to_i
+          patch: scan[7].to_i,
+          source: "gemfile"
         )
 
         all_versions[scan[0]] = vv
@@ -217,7 +218,7 @@ module LibraryVersionAnalysis
           parsed_results[name.to_s].owner = owner if parsed_results.has_key?(name.to_s)
           parsed_results[name.to_s].parent = "Rails"
         else
-          parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0)
+          parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0, source: "gemfile")
         end
       end
     end
@@ -234,7 +235,8 @@ module LibraryVersionAnalysis
 
           vv = Versionline.new(
             owner: :unknown,
-            current_version: scan_result[0][1]
+            current_version: scan_result[0][1],
+            source: "gemfile"
           )
 
           parsed_results[name] = vv

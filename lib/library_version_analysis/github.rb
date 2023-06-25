@@ -5,6 +5,11 @@ module LibraryVersionAnalysis
   class Github
     URL = "https://api.github.com/graphql".freeze
 
+    SOURCES = {
+      "NPM" => "npm",
+      "RUBYGEMS" => "gemfile",
+    }.freeze
+
     unless ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
       HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
         def headers(_context)
@@ -92,6 +97,7 @@ module LibraryVersionAnalysis
             patch: 0,
             age: 0,
             cvss: cvss,
+            source: alert[:source]
           )
 
           parsed_results[package] = vv
@@ -133,7 +139,8 @@ module LibraryVersionAnalysis
             identifiers: alert.security_vulnerability.advisory.identifiers.map(&:value),
             severity: alert.security_vulnerability.severity,
             created_at: alert.created_at,
-            permalink: alert.security_vulnerability.advisory.permalink
+            permalink: alert.security_vulnerability.advisory.permalink,
+            source: SOURCES[ecosystem],
           }
         end
       end

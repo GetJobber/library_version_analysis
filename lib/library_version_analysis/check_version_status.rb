@@ -18,6 +18,7 @@ module LibraryVersionAnalysis
     :minor,
     :patch,
     :age,
+    :source,
     :dependabot_created_at,
     :dependabot_permalink,
     keyword_init: true
@@ -39,7 +40,7 @@ module LibraryVersionAnalysis
       puts "Check Version" if DEV_OUTPUT
 
       # TODO once we fully parameterize this, these go away
-      online = false
+      online = true
       online_node = true
       mobile = false
 
@@ -107,7 +108,7 @@ module LibraryVersionAnalysis
       vulns = []
 
       results.each do |name, row|
-        libraries.push({name: name, owner: row.owner, version: row.current_version})
+        libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source})
         unless row.cvss.nil? || row.cvss == ""
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end

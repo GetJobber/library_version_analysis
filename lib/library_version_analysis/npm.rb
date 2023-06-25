@@ -86,7 +86,8 @@ module LibraryVersionAnalysis
 
           vv = Versionline.new(
             owner: :unknown,
-            current_version: scan_result[0][1]
+            current_version: scan_result[0][1],
+            source: "npm"
           )
 
           parsed_results[name] = vv
@@ -116,7 +117,8 @@ module LibraryVersionAnalysis
           major: line["major"],
           minor: line["minor"],
           patch: line["patch"],
-          age: drift
+          age: drift,
+          source: "npm"
         )
 
         all_versions[line["dependency"]] = vv
