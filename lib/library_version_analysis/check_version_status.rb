@@ -40,7 +40,7 @@ module LibraryVersionAnalysis
       puts "Check Version" if DEV_OUTPUT
 
       # TODO once we fully parameterize this, these go away
-      online = true
+      online = false
       online_node = true
       mobile = false
 
@@ -127,6 +127,7 @@ module LibraryVersionAnalysis
       uri = URI('http://127.0.0.1:4000/api/libraries/upload')
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
+      req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
       req.body = data.to_json
       res = http.request(req)
       puts "response #{res.body}"
