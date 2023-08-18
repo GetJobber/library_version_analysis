@@ -1,5 +1,11 @@
 Status = Struct.new(:exitstatus)
 
+SpecSetStruct = Struct.new(
+  :name,
+  :dependencies,
+  keyword_init: true,
+)
+
 RSpec.describe LibraryVersionAnalysis::Online do
   let(:libyear_versions) do
     <<~DOC
@@ -91,6 +97,46 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
     it "should calculate expected meta_data" do
       expect(subject[1].total_releases).to eq(4)
+    end
+
+    describe "#long_why" do
+      it "should reverse simple chain" do
+        c = SpecSetStruct.new(name: "c")
+        b = SpecSetStruct.new(name: "b", dependencies: [c])
+        a = SpecSetStruct.new(name: "a", dependencies: [b])
+
+        analyzer = LibraryVersionAnalysis::Online.new
+        result = analyzer.add_dependency_graph([a])
+
+        expect(result.count).to eq(3)
+        c = result["c"]
+        expect(c.parents[0].name).to eq("b")
+        b = result["c"].parents[0]
+        expect(b.parents[0].name).to eq("a")
+        a = result["c"].parents[0].parents[0]
+        expect(a.parents).to be_nil
+      end
+
+      it "should handle two leaf tree" do
+        d = SpecSetStruct.new(name: "d")
+        c = SpecSetStruct.new(name: "c")
+        b = SpecSetStruct.new(name: "b", dependencies: [c,d])
+        a = SpecSetStruct.new(name: "a", dependencies: [b])
+
+        analyzer = LibraryVersionAnalysis::Online.new
+        result = analyzer.add_dependency_graph([a])
+
+        expect(result.count).to eq(4)
+        d = result["d"]
+        expect(d.parents[0].name).to eq("b")
+        c = result["c"]
+        expect(c.parents[0].name).to eq("b")
+        b = result["c"].parents[0]
+        expect(b.parents[0].name).to eq("a")
+        a = result["c"].parents[0].parents[0]
+        expect(a.parents).to be_nil
+      end
+
     end
   end
 end

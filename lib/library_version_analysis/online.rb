@@ -24,12 +24,29 @@ module LibraryVersionAnalysis
       puts("Online adding remaining libraries")
       add_remaining_libraries(parsed_results)
 
+      puts("Online building dependency graphs")
+      add_dependency_graph(why_init, parsed_results)
+
       puts("Online adding ownerships")
       add_ownerships(parsed_results)
 
       puts("Online done")
 
       return parsed_results, meta_data
+    end
+
+    def add_dependency_graph(spec_set, parsed_results)
+      nodes = Hash.new
+
+      spec_set.each do |spec|
+        nodes = build_dependency_graph(spec, nodes, spec_set)
+      end
+
+      nodes.each do |key, graph|
+        parsed_results[key]["dependency_graph"] = graph
+      end
+
+      return nodes
     end
 
     private
@@ -254,6 +271,7 @@ module LibraryVersionAnalysis
 
     def why(gem_name, spec_set)
       spec = find_one_spec_in_set(spec_set, gem_name)
+
       traverse(spec_set, spec)
     end
 
@@ -286,6 +304,33 @@ module LibraryVersionAnalysis
              )
       end
       specs.first
+    end
+
+    def build_dependency_graph(spec, nodes, spec_set)
+      current_node = nodes[spec.name]
+      if current_node.nil?
+        current_node = LibNode.new(name: spec.name)
+        nodes[spec.name] = current_node
+      end
+
+      spec.dependencies&.each do |dep|
+        dep_node = nodes[dep.name]
+        if dep_node.nil?
+          dep_node = LibNode.new(name: dep.name)
+          nodes[dep.name] = dep_node
+        end
+
+        if dep_node.parents.nil?
+          dep_node.parents = [current_node]
+        else
+          dep_node.parents.push(current_node) unless dep_node.parents.include?(current_node)
+        end
+
+        child_spec = find_one_spec_in_set(spec_set, dep.name)
+        nodes = build_dependency_graph(child_spec, nodes, spec_set)
+      end
+
+      return nodes
     end
   end
 end

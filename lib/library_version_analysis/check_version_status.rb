@@ -19,12 +19,26 @@ module LibraryVersionAnalysis
     :patch,
     :age,
     :source,
+    :dependency_graph,
     :dependabot_created_at,
     :dependabot_permalink,
     keyword_init: true
   )
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
+
+  LibNode = Struct.new(
+    :name,
+    :parents,
+    keyword_init: true
+  ) do |new_class|
+    def deep_to_h
+      h = {}
+      h[:name] = name
+      h[:parents] = parents&.map(&:deep_to_h)
+      h
+    end
+  end
 
   DEV_OUTPUT = true
 
@@ -40,8 +54,8 @@ module LibraryVersionAnalysis
       puts "Check Version" if DEV_OUTPUT
 
       # TODO once we fully parameterize this, these go away
-      online = false
-      online_node = true
+      online = true
+      online_node = false
       mobile = false
 
       meta_data_online_node, mode_online_node = go_online_node(repository) if online_node
@@ -108,7 +122,7 @@ module LibraryVersionAnalysis
       vulns = []
 
       results.each do |name, row|
-        libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source})
+        libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source, dependency_graph: row.dependency_graph.deep_to_h})
         unless row.cvss.nil? || row.cvss == ""
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
