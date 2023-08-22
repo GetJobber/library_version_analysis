@@ -120,13 +120,15 @@ module LibraryVersionAnalysis
       libraries = []
       new_versions = []
       vulns = []
+      dependencies = []
 
       results.each do |name, row|
-        libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source, dependency_graph: row.dependency_graph.deep_to_h})
+        libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source})
         unless row.cvss.nil? || row.cvss == ""
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch})
+        dependencies.push(row.dependency_graph.deep_to_h)
       end
 
       {
@@ -134,6 +136,7 @@ module LibraryVersionAnalysis
         libraries: libraries,
         new_versions: new_versions,
         vulnerabilities: vulns,
+        dependencies: dependencies,
       }
     end
 
