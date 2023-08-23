@@ -5,7 +5,7 @@ require "pry"
 
 module LibraryVersionAnalysis
   # TODO: This is evil and must be removed when I return
-  OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
+  # OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
   Versionline = Struct.new(
     :owner,
