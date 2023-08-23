@@ -237,8 +237,6 @@ module LibraryVersionAnalysis
     def notify(results)
       recent_time = Time.now - 25 * 60 * 60
 
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE # todo This is evil and must be removed when I return
-
       results.each do |hash_line|
         line = hash_line[1]
         if (!line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time )
