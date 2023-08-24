@@ -26,7 +26,7 @@ module LibraryVersionAnalysis
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
 
-  DEV_OUTPUT = false
+  DEV_OUTPUT = true
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
@@ -46,6 +46,8 @@ module LibraryVersionAnalysis
       print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
       print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
       print_summary("mobile", meta_data_mobile, mode_mobile) if mobile && DEV_OUTPUT
+
+      puts "Done" if DEV_OUTPUT
 
       return {
         online: mode_online,
@@ -87,6 +89,7 @@ module LibraryVersionAnalysis
       puts "    updating spreadsheet" if DEV_OUTPUT
       update_spreadsheet(spreadsheet_id, range, data)
 
+      puts "    slack notify" if DEV_OUTPUT
       notify(parsed_results)
 
       return meta_data, mode
