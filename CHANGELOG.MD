@@ -22,3 +22,6 @@
 
 1.4.2
     Bumped version of pry
+
+1.4.3
+    Fixed to use Slack with new Ruby and removed OpenSSL hack

@@ -4,9 +4,6 @@ require "open3"
 require "pry"
 
 module LibraryVersionAnalysis
-  # TODO: This is evil and must be removed when I return
-  # OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
-
   Versionline = Struct.new(
     :owner,
     :parent,
@@ -182,7 +179,7 @@ module LibraryVersionAnalysis
     def notify(results)
       recent_time = Time.now - 25 * 60 * 60
 
-      SlackNotify.notify("Don't panic. Just testing, to make slack alerts from lib analysis still happen", "security-alerts")
+      # SlackNotify.notify("Don't panic. Just testing, to make slack alerts from lib analysis still happen", "security-alerts")
 
       results.each do |hash_line|
         line = hash_line[1]
