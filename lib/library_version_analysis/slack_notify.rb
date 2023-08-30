@@ -4,7 +4,7 @@ module LibraryVersionAnalysis
   class SlackNotify
     def self.notify(message, room = "test_engineering")
       # client = Slack::Web::Client.new(:token => Rails.configuration.x.slackbot.api_key)
-      client = Slack::Web::Client.new(:token => ENV['SLACK_TOKEN'])
+      client = Slack::Web::Client.new(token: ENV['SLACK_TOKEN'], ca_file: "/usr/lib/ssl/certs/Amazon_Root_CA_1.pem")
 
       begin
         client.chat_postMessage({

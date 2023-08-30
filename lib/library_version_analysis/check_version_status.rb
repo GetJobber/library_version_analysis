@@ -6,9 +6,6 @@ require "uri"
 require "net/https"
 
 module LibraryVersionAnalysis
-  # TODO: This is evil and must be removed when I return
-  OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
-
   Versionline = Struct.new(
     :owner,
     :parent,
@@ -56,7 +53,7 @@ module LibraryVersionAnalysis
     def go(repository:)
       puts "Check Version" if DEV_OUTPUT
 
-      # TODO once we fully parameterize this, these go away
+      # TODO: once we fully parameterize this, these go away
       online = true
       online_node = false
       mobile = false
@@ -68,6 +65,8 @@ module LibraryVersionAnalysis
       print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
       print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
       print_summary("mobile", meta_data_mobile, mode_mobile) if mobile && DEV_OUTPUT
+
+      puts "Done" if DEV_OUTPUT
 
       return {
         online: mode_online,
@@ -109,7 +108,8 @@ module LibraryVersionAnalysis
       puts "    updating server" if DEV_OUTPUT
       update_server(data)
 
-      # notify(parsed_results)
+      puts "    slack notify" if DEV_OUTPUT
+      notify(parsed_results)
 
       return meta_data, mode
     end
@@ -195,6 +195,7 @@ module LibraryVersionAnalysis
     #   value_range_object = Google::Apis::SheetsV4::ValueRange.new(range: range_name, values: results)
     #   service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
     # end
+    # end
 
     def get_mode_summary(results, meta_data)
       mode_summary = ModeSummary.new
@@ -236,6 +237,8 @@ module LibraryVersionAnalysis
 
     def notify(results)
       recent_time = Time.now - 25 * 60 * 60
+
+      # SlackNotify.notify("Don't panic. Just testing, to make slack alerts from lib analysis still happen", "security-alerts")
 
       results.each do |hash_line|
         line = hash_line[1]
