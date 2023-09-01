@@ -1,11 +1,11 @@
 require "googleauth"
 require "google/apis/sheets_v4"
 require "open3"
-require "pry"
+require "pry-byebug"
 
 module LibraryVersionAnalysis
   # TODO: This is evil and must be removed when I return
-  OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
+  # OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
   
   Versionline = Struct.new(
     :owner,
