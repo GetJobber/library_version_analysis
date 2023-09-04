@@ -13,7 +13,7 @@ module LibraryVersionAnalysis
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
       puts("\tOnline dependabot")
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
+      add_dependabot_findings(parsed_results, meta_data)
 
       puts("\tOnline running libyear libyear")
       libyear_results = run_libyear("--libyear")
@@ -120,6 +120,10 @@ module LibraryVersionAnalysis
       meta_data.total_releases = all_versions.count
 
       return all_versions, meta_data
+    end
+
+    def add_dependabot_findings(parsed_results, meta_data)
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
     end
 
     def parse_libyear_libyear(results, parsed_results, meta_data)

@@ -67,6 +67,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       allow(Open3).to receive(:capture3).and_return(["", "", Status.new(1)])
       allow(analyzer).to receive(:why_init).and_return(nil)
       allow(analyzer).to receive(:why).and_return(bundle_why)
+      allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
       allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil) # TODO: will need to retest after we address ownerships
       allow(analyzer).to receive(:add_dependency_graph).and_return(bundle_why) # TODO: Need to upgrade legacy tests
       analyzer.get_versions
