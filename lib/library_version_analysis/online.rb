@@ -1,7 +1,7 @@
 module LibraryVersionAnalysis
   class Online
     def get_versions
-      puts("Online running libyear versions")
+      puts("\tOnline running libyear versions")
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
@@ -9,25 +9,25 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
-      puts("Online parsing libyear")
+      puts("\tOnline parsing libyear")
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
-      puts("Online dependabot")
+      puts("\tOnline dependabot")
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
 
-      puts("Online running libyear libyear")
+      puts("\tOnline running libyear libyear")
       libyear_results = run_libyear("--libyear")
       unless libyear_results.nil?
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
-      puts("Online adding remaining libraries")
+      puts("\tOnline adding remaining libraries")
       add_remaining_libraries(parsed_results)
 
-      puts("Online building dependency graphs")
+      puts("\tOnline building dependency graphs")
       add_dependency_graph(why_init, parsed_results)
 
-      puts("Online adding ownerships")
+      puts("\tOnline adding ownerships")
       add_ownerships(parsed_results)
 
       puts("Online done")
