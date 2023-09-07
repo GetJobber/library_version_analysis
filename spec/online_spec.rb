@@ -59,7 +59,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
   context "if legacy app" do
     subject do
-      analyzer = LibraryVersionAnalysis::Online.new
+      analyzer = LibraryVersionAnalysis::Online.new("Test")
       allow(analyzer).to receive(:run_libyear).with(/--versions/).and_return(libyear_versions)
       allow(analyzer).to receive(:run_libyear).with(/--libyear/).and_return(libyear_libyear)
       allow(analyzer).to receive(:add_remaining_libraries).and_return(libyear_libyear) # do nothing at this point
@@ -132,7 +132,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
         parsed_results = {"a" => {}, "b" => {}, "c" => {}}
 
-        analyzer = LibraryVersionAnalysis::Online.new
+        analyzer = LibraryVersionAnalysis::Online.new("test")
         result = analyzer.add_dependency_graph(full_spec_set, parsed_results)
 
         expect(result.count).to eq(3)
@@ -158,9 +158,10 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
         parsed_results = {"a" => {}, "b" => {}, "c" => {}, "d" => {}}
 
-        analyzer = LibraryVersionAnalysis::Online.new
+        analyzer = LibraryVersionAnalysis::Online.new("test")
         result = analyzer.add_dependency_graph(full_spec_set, parsed_results)
 
+        binding.pry
         expect(result.count).to eq(4)
         d = result["d"]
         expect(d.parents[0].name).to eq("b")

@@ -59,14 +59,14 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     expect(result[:age]).to eq(age)
   end
 
-  context "when mobile" do
+  context "with old app" do
     subject do
-      analyzer = LibraryVersionAnalysis::Npm.new
+      analyzer = LibraryVersionAnalysis::Npm.new("test")
       allow(analyzer).to receive(:read_file).with("./libyear_report.txt", true).and_return(npxfile)
       allow(analyzer).to receive(:read_file).with("./package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
 
-      analyzer.get_versions(".")
+      analyzer.get_versions
     end
 
     it "should get expected data for owned gem" do
@@ -101,6 +101,111 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       expect(subject[1].total_major).to eq(13)
       expect(subject[1].total_minor).to eq(98)
       expect(subject[1].total_patch).to eq(147)
+    end
+  end
+
+  context "if new app" do
+    describe "#add_dependency_graph" do
+      let(:npm_list) do
+        results = <<~EOR
+          {
+            "version": "1.0.0",
+            "name": "jobber",
+            "problems": [
+              "invalid: stylelint@14.16.1 /Users/johnz/source/Jobber/node_modules/stylelint"
+            ],
+            "dependencies": {
+              "a": {
+                "version": "1.1.35",
+                "resolved": "https://registry.npmjs.org/@googlemaps/react-wrapper/-/react-wrapper-1.1.35.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "b": {
+                    "version": "1.16.2",
+                    "resolved": "https://registry.npmjs.org/@googlemaps/js-api-loader/-/js-api-loader-1.16.2.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "c": {
+                        "version": "3.1.3"
+                      },
+                      "d": {
+                        "version": "3.1.3"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        EOR
+
+        return results
+      end
+
+      let(:npm_short_list) do
+        results = <<~EOR
+          {
+            "version": "1.0.0",
+            "name": "jobber",
+            "problems": [
+              "invalid: stylelint@14.16.1 /Users/johnz/source/Jobber/node_modules/stylelint"
+            ],
+            "dependencies": {
+              "a": {
+                "version": "1.1.35",
+                "resolved": "https://registry.npmjs.org/@googlemaps/react-wrapper/-/react-wrapper-1.1.35.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "b": {
+                    "version": "1.16.2",
+                    "dependencies": {
+                      "c": {
+                        "version": "1.16.2"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        EOR
+        return results
+      end
+
+      it "should reverse simple chain" do
+        parsed_results = {"a" => {}, "b" => {}, "c" => {}}
+
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_short_list)
+
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        expect(result.count).to eq(3)
+        c = result["c"]
+        expect(c.parents[0].name).to eq("b")
+        b = result["c"].parents[0]
+        expect(b.parents[0].name).to eq("a")
+        a = result["c"].parents[0].parents[0]
+        expect(a.parents).to be_nil
+      end
+
+      it "should handle two leaf tree" do
+        parsed_results = {"a" => {}, "b" => {}, "c" => {}, "d" => {}}
+
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_list)
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        expect(result.count).to eq(4)
+        d = result["d"]
+        expect(d.parents[0].name).to eq("b")
+        c = result["c"]
+        expect(c.parents[0].name).to eq("b")
+        b = result["c"].parents[0]
+        expect(b.parents[0].name).to eq("a")
+        a = result["c"].parents[0].parents[0]
+        expect(a.parents).to be_nil
+      end
     end
   end
 end

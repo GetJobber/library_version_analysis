@@ -1,5 +1,6 @@
 require "graphql/client"
 require "graphql/client/http"
+require "pry-byebug"
 
 module LibraryVersionAnalysis
   class Github
@@ -10,7 +11,11 @@ module LibraryVersionAnalysis
       "RUBYGEMS" => "gemfile",
     }.freeze
 
-    unless ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
+    if ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
+      # THIS PREVENTS JOBBER FROM STARTING. REFACTOR SO NONE OF THIS IS DONE ON JOBBER STARTUP!!!!!
+      puts "ERROR: GITHUB_READ_API_TOKEN not set, aborting"
+      # exit(-1)
+    else
       HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
         def headers(_context)
           {
@@ -19,6 +24,7 @@ module LibraryVersionAnalysis
           }
         end
       end
+
       SCHEMA = GraphQL::Client.load_schema(HTTP_ADAPTER)
       CLIENT = GraphQL::Client.new(schema: SCHEMA, execute: HTTP_ADAPTER)
 

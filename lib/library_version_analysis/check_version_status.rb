@@ -54,8 +54,8 @@ module LibraryVersionAnalysis
       puts "Check Version" if DEV_OUTPUT
 
       # TODO: once we fully parameterize this, these go away
-      online = true
-      online_node = false
+      online = false
+      online_node = true
       mobile = false
 
       meta_data_online_node, mode_online_node = go_online_node(repository) if online_node
@@ -77,7 +77,7 @@ module LibraryVersionAnalysis
 
     def go_online(repository)
       puts "  online" if DEV_OUTPUT
-      online = Online.new
+      online = Online.new("Jobber")
       meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", repository, "ONLINE")
 
       return meta_data_online, mode_online

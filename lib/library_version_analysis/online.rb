@@ -1,5 +1,9 @@
 module LibraryVersionAnalysis
   class Online
+    def initialize(github_repo)
+      @github_repo = github_repo
+    end
+
     def get_versions
       puts("\tOnline running libyear versions")
       libyear_results = run_libyear("--versions")
@@ -13,7 +17,7 @@ module LibraryVersionAnalysis
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
       puts("\tOnline dependabot")
-      add_dependabot_findings(parsed_results, meta_data)
+      add_dependabot_findings(parsed_results, meta_data, @github_repo)
 
       puts("\tOnline running libyear libyear")
       libyear_results = run_libyear("--libyear")
@@ -122,8 +126,8 @@ module LibraryVersionAnalysis
       return all_versions, meta_data
     end
 
-    def add_dependabot_findings(parsed_results, meta_data)
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, "Jobber", "RUBYGEMS")
+    def add_dependabot_findings(parsed_results, meta_data, github_repo)
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, "RUBYGEMS")
     end
 
     def parse_libyear_libyear(results, parsed_results, meta_data)

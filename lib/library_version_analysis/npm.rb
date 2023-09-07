@@ -5,7 +5,7 @@ module LibraryVersionAnalysis
     end
 
     def get_versions
-      puts("mobile running libyear")
+      puts("Mobile running libyear")
 
       libyear_results = run_libyear
       if libyear_results.nil?
@@ -13,20 +13,38 @@ module LibraryVersionAnalysis
         exit -1
       end
 
-      puts("mobile parsing libyear")
+      puts("\tMobile parsing libyear")
       parsed_results, meta_data = parse_libyear(libyear_results)
 
-      puts("mobile dependabot")
+      puts("\tMobile dependabot")
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, @github_repo, "NPM")
 
-      puts("mobile adding remaining libraries")
+      puts("\tMobile adding remaining libraries")
       add_remaining_libraries(parsed_results)
 
-      puts("mobile add ownerships")
+      puts("\tMobile building dependency graph")
+      add_dependency_graph(nil) #parsed_results)
+
+      puts("\tMobile adding ownerships")
       add_ownerships(parsed_results)
 
-      puts("mobile done")
+      puts("Mobile done")
       return parsed_results, meta_data
+    end
+
+    def add_dependency_graph(parsed_results)
+      nodes = Hash.new
+
+      results = run_npm_list
+      json = JSON.parse(results)
+
+      nodes = build_dependency_graph(json["dependencies"], nil)
+
+      nodes.each do |key, graph|
+        parsed_results[key]["dependency_graph"] = graph
+      end
+
+      return nodes
     end
 
     private
@@ -186,11 +204,35 @@ module LibraryVersionAnalysis
       end
     end
 
+    def build_dependency_graph(npm_nodes, parents)
+      return {} if npm_nodes.nil?
+
+      nodes = {}
+      npm_nodes.keys.each do |name|
+        parent = LibNode.new(name: name, parents: parents.nil? ? nil : [parents])
+        nodes[name] = parent
+        new_nodes = build_dependency_graph(npm_nodes[name]["dependencies"], parent)
+        nodes.merge!(new_nodes)
+      end
+
+      return nodes
+    end
+
     def build_transitive_mapping(parsed_results)
       mappings = {}
       results = run_npm_list
+      # results <<~EOR
+      #   jobber@1.0.0 /Users/johnz/source/Jobber
+      #   ├─┬ @amplitude/analytics-browser@1.10.3
+      #   │ ├─┬ @amplitude/analytics-client-common@0.7.0
+      #   │ │ ├── @amplitude/analytics-connector@1.4.8
+      #   │ │ ├── @amplitude/analytics-core@0.13.3 deduped
+      #   │ │ ├── @amplitude/analytics-types@0.20.0 deduped
+      #   │ │ └── tslib@2.5.0
+      # EOR
 
       # ├ ─ ┬    │ ├ ─ ─   │ │ └ ─ ─ These are the symbols used, keep here for now
+
       parent = "undefined"
 
       last_parent = false
@@ -217,7 +259,7 @@ module LibraryVersionAnalysis
     end
 
     def run_npm_list
-      cmd = "npm list"
+      cmd = "npm list --all --jaon"
       results, captured_err, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
