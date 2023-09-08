@@ -1,6 +1,6 @@
 module LibraryVersionAnalysis
   class Analyze
-    def self.go
+    def self.go(_) # TODO: This will get resolved once we merge in the server rewrite
       spreadsheet_id = ENV["VERSION_STATUS_SPREADSHEET_ID"]
       results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: spreadsheet_id, online: "true", online_node: "true", mobile: "false")
 
