@@ -56,6 +56,8 @@ module LibraryVersionAnalysis
       # TODO: once we fully parameterize this, these go away
       online = false
       online_node = true
+      # online = true
+      # online_node = false
       mobile = false
 
       meta_data_online_node, mode_online_node = go_online_node(repository) if online_node
@@ -125,14 +127,21 @@ module LibraryVersionAnalysis
       vulns = []
       dependencies = []
 
+      missing_dependency_keys = [] # TODO: handle missing keys
       results.each do |name, row|
         libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source})
         unless row.cvss.nil? || row.cvss == ""
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch})
-        dependencies.push(row.dependency_graph.deep_to_h)
+        if row.dependency_graph.nil?
+          missing_dependency_keys.push(name)
+        else
+          dependencies.push(row.dependency_graph.deep_to_h)
+        end
       end
+
+      binding.pry
 
       {
         repository: repository,

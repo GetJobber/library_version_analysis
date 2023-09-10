@@ -23,7 +23,7 @@ module LibraryVersionAnalysis
       add_remaining_libraries(parsed_results)
 
       puts("\tMobile building dependency graph")
-      add_dependency_graph(nil) #parsed_results)
+      add_dependency_graph( parsed_results)
 
       puts("\tMobile adding ownerships")
       add_ownerships(parsed_results)
@@ -40,8 +40,13 @@ module LibraryVersionAnalysis
 
       nodes = build_dependency_graph(json["dependencies"], nil)
 
+      missing_keys = {} # TODO: handle missing keys
       nodes.each do |key, graph|
-        parsed_results[key]["dependency_graph"] = graph
+        if parsed_results.has_key?(key)
+          parsed_results[key]["dependency_graph"] = graph
+        else
+          missing_keys[key] = graph
+        end
       end
 
       return nodes
@@ -259,7 +264,7 @@ module LibraryVersionAnalysis
     end
 
     def run_npm_list
-      cmd = "npm list --all --jaon"
+      cmd = "npm list --all --json"
       results, captured_err, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
