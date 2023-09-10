@@ -1,9 +1,9 @@
 require "googleauth"
 require "google/apis/sheets_v4"
 require "open3"
-require "pry"
 require "uri"
 require "net/https"
+require "pry-byebug"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -40,7 +40,7 @@ module LibraryVersionAnalysis
     end
   end
 
-  DEV_OUTPUT = true
+  DEV_OUTPUT = false # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
 
   class CheckVersionStatus
     def self.run(repository:)
