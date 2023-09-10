@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
 
 require "library_version_analysis"
-results = LibraryVersionAnalysis::CheckVersionStatus.run(repository: ARGV[0])
+results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: ARGV[0], repository: ARGV[1])
 puts JSON.generate(results)

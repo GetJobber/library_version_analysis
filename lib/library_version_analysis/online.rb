@@ -25,8 +25,10 @@ module LibraryVersionAnalysis
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
-      puts("\tOnline adding remaining libraries")
-      add_remaining_libraries(parsed_results)
+      unless LibraryVersionAnalysis::LEGACY_DB_SYNC
+        puts("\tOnline adding remaining libraries")
+        add_remaining_libraries(parsed_results)
+      end
 
       puts("\tOnline building dependency graphs")
       add_dependency_graph(why_init, parsed_results)

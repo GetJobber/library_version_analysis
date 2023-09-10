@@ -40,17 +40,18 @@ module LibraryVersionAnalysis
     end
   end
 
+  LEGACY_DB_SYNC = true
   DEV_OUTPUT = false # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
 
   class CheckVersionStatus
-    def self.run(repository:)
+    def self.run(spreadsheet_id:, repository:)
       c = CheckVersionStatus.new
-      mode_results = c.go(repository: repository)
+      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository)
 
       return c.build_mode_results(mode_results)
     end
 
-    def go(repository:)
+    def go(spreadsheet_id:, repository:)
       puts "Check Version" if DEV_OUTPUT
 
       # TODO: once we fully parameterize this, these go away
@@ -77,41 +78,52 @@ module LibraryVersionAnalysis
       }
     end
 
-    def go_online(repository)
+    def go_online(spreadsheet_id, repository)
       puts "  online" if DEV_OUTPUT
       online = Online.new("Jobber")
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", repository, "ONLINE")
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, repository, "ONLINE")
 
       return meta_data_online, mode_online
     end
 
-    def go_online_node(spreadsheet_id)
+    def go_online_node(spreadsheet_id, rep)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new("Jobber")
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, "ONLINE NODE")
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, respository, "ONLINE NODE")
 
       return meta_data_online_node, mode_online_node
     end
 
-    def go_mobile(spreadsheet_id)
+    def go_mobile(spreadsheet_id, repository
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new("Jobber-mobile")
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, "MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, repository,"MOBILE")
 
       return meta_data_mobile, mode_mobile
     end
 
-    def get_version_summary(parser, range, repository, source)
+    def get_version_summary(parser, range, spreadsheet_id, repository, source)
       parsed_results, meta_data = parser.get_versions
 
       mode = get_mode_summary(parsed_results, meta_data)
-      data = server_data(parsed_results, repository)
 
-      puts "    updating server" if DEV_OUTPUT
-      update_server(data)
+      if LEGACY_DB_SYNC
+        data = spreadsheet_data(parsed_results, repository)
 
-      puts "    slack notify" if DEV_OUTPUT
-      notify(parsed_results)
+        puts "    updating spreadsheet" if DEV_OUTPUT
+        update_spreadsheet(spreadsheet_id, range, data)
+
+        puts "    slack notify" if DEV_OUTPUT
+        notify(parsed_results)
+      else
+        data = server_data(parsed_results, repository)
+
+        puts "    updating server" if DEV_OUTPUT
+        update_server(data)
+
+        # puts "    slack notify" if DEV_OUTPUT
+        # notify(parsed_results)
+      end
 
       return meta_data, mode
     end
@@ -162,49 +174,48 @@ module LibraryVersionAnalysis
       puts "response #{res.body}"
     end
 
-    # def spreadsheet_data(results, source)
-    #   header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
-    #   data = [header_row]
-    #
-    #   data << ["Updated: #{Time.now.utc}"]z
-    #
-    #   results.each do |name, row|
-    #     data << [
-    #       name,
-    #       row.owner,
-    #       row.parent,
-    #       source,
-    #       row.current_version,
-    #       row.current_version_date,
-    #       row.latest_version,
-    #       row.latest_version_date,
-    #       row.major,
-    #       row.minor,
-    #       row.patch,
-    #       row.age,
-    #       row.cvss,
-    #       '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
-    #       '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
-    #       '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
-    #       '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
-    #     ]
-    #   end
-    #
-    #   return data
-    # end
+    def spreadsheet_data(results, source)
+      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
+      data = [header_row]
 
-    # def update_spreadsheet(spreadsheet_id, range_name, results)
-    #   service = Google::Apis::SheetsV4::SheetsService.new
-    #   service.authorization = ::Google::Auth::ServiceAccountCredentials.make_creds(scope: "https://www.googleapis.com/auth/spreadsheets")
-    #
-    #   clear_range = Google::Apis::SheetsV4::BatchClearValuesRequest.new
-    #   clear_range.ranges = [range_name]
-    #   service.batch_clear_values(spreadsheet_id, clear_range)
-    #
-    #   value_range_object = Google::Apis::SheetsV4::ValueRange.new(range: range_name, values: results)
-    #   service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
-    # end
-    # end
+      data << ["Updated: #{Time.now.utc}"]
+
+      results.each do |name, row|
+        data << [
+          name,
+          row.owner,
+          row.parent,
+          source,
+          row.current_version,
+          row.current_version_date,
+          row.latest_version,
+          row.latest_version_date,
+          row.major,
+          row.minor,
+          row.patch,
+          row.age,
+          row.cvss,
+          '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
+          '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
+          '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
+          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
+        ]
+      end
+
+      return data
+    end
+
+    def update_spreadsheet(spreadsheet_id, range_name, results)
+      service = Google::Apis::SheetsV4::SheetsService.new
+      service.authorization = ::Google::Auth::ServiceAccountCredentials.make_creds(scope: "https://www.googleapis.com/auth/spreadsheets")
+
+      clear_range = Google::Apis::SheetsV4::BatchClearValuesRequest.new
+      clear_range.ranges = [range_name]
+      service.batch_clear_values(spreadsheet_id, clear_range)
+
+      value_range_object = Google::Apis::SheetsV4::ValueRange.new(range: range_name, values: results)
+      service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
+    end
 
     def get_mode_summary(results, meta_data)
       mode_summary = ModeSummary.new

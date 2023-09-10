@@ -19,8 +19,10 @@ module LibraryVersionAnalysis
       puts("\tMobile dependabot")
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, @github_repo, "NPM")
 
-      puts("\tMobile adding remaining libraries")
-      add_remaining_libraries(parsed_results)
+      unless LibraryVersionAnalysis::LEGACY_DB_SYNC
+        puts("\tMobile adding remaining libraries")
+        add_remaining_libraries(parsed_results)
+      end
 
       puts("\tMobile building dependency graph")
       add_dependency_graph( parsed_results)
@@ -96,6 +98,7 @@ module LibraryVersionAnalysis
 
     def add_remaining_libraries(parsed_results)
       cmd = "npm list --all"
+
       results, captured_err, status = Open3.capture3(cmd)
       # ignore errors for this. It actually will fail, but we hopefully don't care
 
