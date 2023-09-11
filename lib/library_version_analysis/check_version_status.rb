@@ -31,7 +31,7 @@ module LibraryVersionAnalysis
     :name,
     :parents,
     keyword_init: true
-  ) do |new_class|
+  ) do |_|
     def deep_to_h
       h = {}
       h[:name] = name
@@ -86,10 +86,10 @@ module LibraryVersionAnalysis
       return meta_data_online, mode_online
     end
 
-    def go_online_node(spreadsheet_id, rep)
+    def go_online_node(spreadsheet_id, repository)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new(repository)
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, respository, "ONLINE NODE")
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, repository, "ONLINE NODE")
 
       return meta_data_online_node, mode_online_node
     end
@@ -97,7 +97,7 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id, repository)
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new(repository)
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, repository,"MOBILE")
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, repository, "MOBILE")
 
       return meta_data_mobile, mode_mobile
     end
@@ -108,7 +108,7 @@ module LibraryVersionAnalysis
       mode = get_mode_summary(parsed_results, meta_data)
 
       if LEGACY_DB_SYNC
-        data = spreadsheet_data(parsed_results, repository)
+        data = spreadsheet_data(parsed_results, source)
 
         puts "    updating spreadsheet" if DEV_OUTPUT
         update_spreadsheet(spreadsheet_id, range, data)
@@ -153,8 +153,6 @@ module LibraryVersionAnalysis
         end
       end
 
-      binding.pry
-
       {
         repository: repository,
         libraries: libraries,
@@ -198,7 +196,7 @@ module LibraryVersionAnalysis
           '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
           '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
           '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
-          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
+          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))',
         ]
       end
 

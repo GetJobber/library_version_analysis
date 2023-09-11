@@ -258,7 +258,7 @@ module LibraryVersionAnalysis
         unless scan_result.nil? || scan_result.empty?
           name = scan_result[0][0]
 
-          next if parsed_results.key?(name)
+          next if parsed_results.has_key?(name)
 
           vv = Versionline.new(
             owner: :unknown,
@@ -277,6 +277,8 @@ module LibraryVersionAnalysis
     def why_init
       runtime = Bundler.load
       spec_set = runtime.specs # delegates to Bundler::Definition#specs
+
+      return spec_set
     end
 
     def why(gem_name, spec_set)
@@ -290,11 +292,11 @@ module LibraryVersionAnalysis
     # @param path Array[Bundler::StubSpecification]
     # @void
     def traverse(spec_set, parent, path = [parent])
-      children = spec_set.select { |s|
-        s.dependencies.any? { |d|
+      children = spec_set.select do |s|
+        s.dependencies.any? do |d|
           d.type == :runtime && d.name == parent.name
-        }
-      }
+        end
+      end
       if children.empty?
         return path
       else
@@ -308,10 +310,9 @@ module LibraryVersionAnalysis
       specs = spec_set[gem_name]
       if specs.length != 1
         warn format(
-               'Expected %s to match exactly 1 spec, got %d',
-               gem_name,
-               specs.length
-             )
+          'Expected %s to match exactly 1 spec, got %d',
+          gem_name, specs.length
+        )
       end
       specs.first
     end

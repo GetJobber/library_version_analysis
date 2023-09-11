@@ -25,7 +25,7 @@ module LibraryVersionAnalysis
       end
 
       puts("\tMobile building dependency graph")
-      add_dependency_graph( parsed_results)
+      add_dependency_graph(parsed_results)
 
       puts("\tMobile adding ownerships")
       add_ownerships(parsed_results)
@@ -35,8 +35,6 @@ module LibraryVersionAnalysis
     end
 
     def add_dependency_graph(parsed_results)
-      nodes = Hash.new
-
       results = run_npm_list
       json = JSON.parse(results)
 
@@ -108,7 +106,7 @@ module LibraryVersionAnalysis
         unless scan_result.nil? || scan_result.empty?
           name = scan_result[0][0]
 
-          next if parsed_results.key?(name)
+          next if parsed_results.has_key?(name)
 
           vv = Versionline.new(
             owner: :unknown,
