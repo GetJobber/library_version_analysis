@@ -267,7 +267,11 @@ module LibraryVersionAnalysis
     end
 
     def run_npm_list
-      cmd = "npm list --all --json"
+      if LibraryVersionAnalysis::LEGACY_DB_SYNC
+        cmd = "npm list"
+      else
+        cmd = "npm list --all --json"
+      end
       results, captured_err, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
