@@ -44,22 +44,26 @@ module LibraryVersionAnalysis
   DEV_OUTPUT = false # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
 
   class CheckVersionStatus
-    def self.run(spreadsheet_id:, repository:)
+    def self.run(spreadsheet_id:, repository:, source:)
       c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository)
+      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 
       return c.build_mode_results(mode_results)
     end
 
-    def go(spreadsheet_id:, repository:)
+    def go(spreadsheet_id:, repository:, source:)
       puts "Check Version" if DEV_OUTPUT
 
-      # TODO: once we fully parameterize this, these go away
-      online = false
-      online_node = true
-      # online = true
-      # online_node = false
-      mobile = false
+      # TODO: This will change a bit later.
+      if repository == "jobber-mobile"
+        online = false
+        online_node = false
+        mobile = true
+      else
+        online = true
+        online_node = true
+        mobile = false
+      end
 
       meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id, repository) if online_node
       meta_data_online, mode_online = go_online(spreadsheet_id, repository) if online
@@ -110,18 +114,18 @@ module LibraryVersionAnalysis
       if LEGACY_DB_SYNC
         data = spreadsheet_data(parsed_results, source)
 
-        puts "    updating spreadsheet" if DEV_OUTPUT
+        puts "    updating spreadsheet #{source}" if DEV_OUTPUT
         update_spreadsheet(spreadsheet_id, range, data)
 
-        puts "    slack notify" if DEV_OUTPUT
+        puts "    slack notify #{source}" if DEV_OUTPUT
         notify(parsed_results)
       else
         data = server_data(parsed_results, repository)
 
-        puts "    updating server" if DEV_OUTPUT
+        puts "    updating server {respository}" if DEV_OUTPUT
         update_server(data)
 
-        # puts "    slack notify" if DEV_OUTPUT
+        # puts "    slack notify {repository}" if DEV_OUTPUT
         # notify(parsed_results)
       end
 

@@ -5,7 +5,7 @@ module LibraryVersionAnalysis
     end
 
     def get_versions
-      puts("\tOnline running libyear versions")
+      puts("\tOnline running libyear versions") if LibraryVersionAnalysis::DEV_OUTPUT
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
@@ -13,30 +13,30 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
-      puts("\tOnline parsing libyear")
+      puts("\tOnline parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
-      puts("\tOnline dependabot")
+      puts("\tOnline dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
       add_dependabot_findings(parsed_results, meta_data, @github_repo)
 
-      puts("\tOnline running libyear libyear")
+      puts("\tOnline running libyear libyear") if LibraryVersionAnalysis::DEV_OUTPUT
       libyear_results = run_libyear("--libyear")
       unless libyear_results.nil?
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
       unless LibraryVersionAnalysis::LEGACY_DB_SYNC
-        puts("\tOnline adding remaining libraries")
+        puts("\tOnline adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
         add_remaining_libraries(parsed_results)
+
+        puts("\tOnline building dependency graphs") if LibraryVersionAnalysis::DEV_OUTPUT
+        add_dependency_graph(why_init, parsed_results)
       end
 
-      puts("\tOnline building dependency graphs")
-      add_dependency_graph(why_init, parsed_results)
-
-      puts("\tOnline adding ownerships")
+      puts("\tOnline adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
       add_ownerships(parsed_results)
 
-      puts("Online done")
+      puts("Online done") if LibraryVersionAnalysis::DEV_OUTPUT
 
       return parsed_results, meta_data
     end

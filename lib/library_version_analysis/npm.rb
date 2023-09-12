@@ -5,7 +5,7 @@ module LibraryVersionAnalysis
     end
 
     def get_versions
-      puts("Mobile running libyear")
+      puts("NPM running libyear") if LibraryVersionAnalysis::DEV_OUTPUT
 
       libyear_results = run_libyear
       if libyear_results.nil?
@@ -13,24 +13,24 @@ module LibraryVersionAnalysis
         exit -1
       end
 
-      puts("\tMobile parsing libyear")
+      puts("\tNPM parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
       parsed_results, meta_data = parse_libyear(libyear_results)
 
-      puts("\tMobile dependabot")
+      puts("\tNPM dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, @github_repo, "NPM")
 
       unless LibraryVersionAnalysis::LEGACY_DB_SYNC
-        puts("\tMobile adding remaining libraries")
+        puts("\tMobile adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
         add_remaining_libraries(parsed_results)
+
+        puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
+        add_dependency_graph(parsed_results)
       end
 
-      puts("\tMobile building dependency graph")
-      add_dependency_graph(parsed_results)
-
-      puts("\tMobile adding ownerships")
+      puts("\tNPM adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
       add_ownerships(parsed_results)
 
-      puts("Mobile done")
+      puts("NPM done") if LibraryVersionAnalysis::DEV_OUTPUT
       return parsed_results, meta_data
     end
 
