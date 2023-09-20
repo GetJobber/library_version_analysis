@@ -25,7 +25,7 @@ module LibraryVersionAnalysis
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
-      unless LibraryVersionAnalysis::LEGACY_DB_SYNC
+      unless LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
         puts("\tOnline adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
         add_remaining_libraries(parsed_results)
 

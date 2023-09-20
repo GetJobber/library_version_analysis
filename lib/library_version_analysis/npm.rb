@@ -5,7 +5,13 @@ module LibraryVersionAnalysis
     end
 
     def get_versions
-      puts("NPM running libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      all_libraries = {}
+      unless LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+        puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
+        all_libraries = add_all_libraries
+      end
+
+      puts("\tNPM running libyear") if LibraryVersionAnalysis::DEV_OUTPUT
 
       libyear_results = run_libyear
       if libyear_results.nil?
@@ -14,15 +20,12 @@ module LibraryVersionAnalysis
       end
 
       puts("\tNPM parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
-      parsed_results, meta_data = parse_libyear(libyear_results)
+      parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
 
       puts("\tNPM dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, @github_repo, "NPM")
+      add_dependabot_findings(parsed_results, meta_data, @github_repo)
 
-      unless LibraryVersionAnalysis::LEGACY_DB_SYNC
-        puts("\tMobile adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
-        add_remaining_libraries(parsed_results)
-
+      unless LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
         puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
         add_dependency_graph(parsed_results)
       end
@@ -32,6 +35,10 @@ module LibraryVersionAnalysis
 
       puts("NPM done") if LibraryVersionAnalysis::DEV_OUTPUT
       return parsed_results, meta_data
+    end
+
+    def add_dependabot_findings(parsed_results, meta_data, github_repo)
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, "NPM")
     end
 
     def add_dependency_graph(parsed_results)
@@ -94,33 +101,45 @@ module LibraryVersionAnalysis
       return results
     end
 
-    def add_remaining_libraries(parsed_results)
-      cmd = "npm list --all"
+    def add_all_libraries()
+      all_libraries = {}
+      cmd = "npm list --all --silent"
 
-      results, captured_err, status = Open3.capture3(cmd)
       # ignore errors for this. It actually will fail, but we hopefully don't care
+      results, captured_err, status = Open3.capture3(cmd)
 
       results.each_line do |line|
+        next if line.include?("UNMET OPTIONAL DEPENDENCY")
+
         scan_result = line.scan(/^.*?\s([@\w].+)@([.\d]*)/)
 
         unless scan_result.nil? || scan_result.empty?
           name = scan_result[0][0]
 
-          next if parsed_results.has_key?(name)
-
-          vv = Versionline.new(
-            owner: :unknown,
-            current_version: scan_result[0][1],
-            source: "npm"
-          )
-
-          parsed_results[name] = vv
+          vv = all_libraries[name]
+          if vv.nil?
+            vv = new_version_line(scan_result[0][1])
+            all_libraries[name] = vv
+          else
+            vv.current_version = calculate_version(vv.current_version, scan_result[0][1])
+          end
         end
       end
+
+      return all_libraries
     end
 
-    def parse_libyear(results)
-      all_versions = {}
+    def new_version_line(current_version)
+      Versionline.new(
+        owner: :unknown,
+        current_version: current_version,
+        current_version_date: "",
+        latest_version_date: "",
+        source: "npm"
+      )
+    end
+
+    def parse_libyear(results, all_libraries)
       data = JSON.parse(results)
 
       meta_data = create_blank_metadata
@@ -132,26 +151,23 @@ module LibraryVersionAnalysis
         meta_data.total_minor += line["minor"]
         meta_data.total_patch += line["patch"]
 
-        vv = Versionline.new(
-          owner: :unknown,
-          current_version: "",
-          current_version_date: "",
-          latest_version: line["available"],
-          latest_version_date: "",
-          major: line["major"],
-          minor: line["minor"],
-          patch: line["patch"],
-          age: drift,
-          source: "npm"
-        )
+        vv = all_libraries[line["dependency"]]
+        if vv.nil?
+          vv = new_version_line("")
+          all_libraries[line["dependency"]] = vv
+        end
 
-        all_versions[line["dependency"]] = vv
+        vv.latest_version = line["available"]
+        vv.major = line["major"]
+        vv.minor = line["minor"]
+        vv.patch = line["patch"]
+        vv.age = drift
       end
 
       meta_data.total_age = meta_data.total_age.round(1)
       meta_data.total_releases = data.count
 
-      return all_versions, meta_data
+      return all_libraries, meta_data
     end
 
     def create_blank_metadata
@@ -196,6 +212,25 @@ module LibraryVersionAnalysis
           line_data.owner = parsed_results[parent].owner
           line_data.parent = parent
         end
+      end
+    end
+
+    def calculate_version(current_version, new_version)
+      left, right = current_version.split("..")
+      if right.nil?
+        if left == new_version
+          return current_version
+        else
+          right = left
+        end
+      end
+
+      if new_version < left
+        return "#{new_version}..#{right}"
+      elsif new_version > right
+        return "#{left}..#{new_version}"
+      else
+        return current_version
       end
     end
 
@@ -265,10 +300,10 @@ module LibraryVersionAnalysis
     end
 
     def run_npm_list
-      if LibraryVersionAnalysis::LEGACY_DB_SYNC
-        cmd = "npm list"
+      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+        cmd = "npm list --silent"
       else
-        cmd = "npm list --all --json"
+        cmd = "npm list --all --json --silent"
       end
       results, captured_err, status = Open3.capture3(cmd)
 

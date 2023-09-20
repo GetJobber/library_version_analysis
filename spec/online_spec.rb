@@ -57,7 +57,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
     expect(result[:age]).to eq(age)
   end
 
-  context "if legacy app" do
+  context "with legacy app" do
     subject do
       analyzer = LibraryVersionAnalysis::Online.new("Test")
       allow(analyzer).to receive(:run_libyear).with(/--versions/).and_return(libyear_versions)
@@ -71,6 +71,10 @@ RSpec.describe LibraryVersionAnalysis::Online do
       allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil) # TODO: will need to retest after we address ownerships
       allow(analyzer).to receive(:add_dependency_graph).and_return(bundle_why) # TODO: Need to upgrade legacy tests
       analyzer.get_versions
+    end
+
+    before(:each) do
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(true)
     end
 
     it "should get expected data for owned gem" do
@@ -118,7 +122,11 @@ RSpec.describe LibraryVersionAnalysis::Online do
     end
   end
 
-  context "if new app" do
+  context "with new app" do
+    before(:each) do
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(false)
+    end
+
     describe "#add_dependency_graph" do
       it "should reverse simple chain" do
         c = SpecSetStruct.new(name: "c")
@@ -161,7 +169,6 @@ RSpec.describe LibraryVersionAnalysis::Online do
         analyzer = LibraryVersionAnalysis::Online.new("test")
         result = analyzer.add_dependency_graph(full_spec_set, parsed_results)
 
-        binding.pry
         expect(result.count).to eq(4)
         d = result["d"]
         expect(d.parents[0].name).to eq("b")

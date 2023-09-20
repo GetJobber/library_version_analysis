@@ -40,8 +40,8 @@ module LibraryVersionAnalysis
     end
   end
 
-  LEGACY_DB_SYNC = true
-  DEV_OUTPUT = false # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  LEGACY_DB_SYNC = false
+  DEV_OUTPUT = true # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)
@@ -49,6 +49,10 @@ module LibraryVersionAnalysis
       mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 
       return c.build_mode_results(mode_results)
+    end
+
+    def self.is_legacy?
+      LEGACY_DB_SYNC
     end
 
     def go(spreadsheet_id:, repository:, source:)
@@ -111,7 +115,7 @@ module LibraryVersionAnalysis
 
       mode = get_mode_summary(parsed_results, meta_data)
 
-      if LEGACY_DB_SYNC
+      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
         data = spreadsheet_data(parsed_results, source)
 
         puts "    updating spreadsheet #{source}" if DEV_OUTPUT

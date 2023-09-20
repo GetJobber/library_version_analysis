@@ -59,14 +59,20 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     expect(result[:age]).to eq(age)
   end
 
-  context "with old app" do
+  context "with legacy app" do
     subject do
       analyzer = LibraryVersionAnalysis::Npm.new("test")
-      allow(analyzer).to receive(:read_file).with("./libyear_report.txt", true).and_return(npxfile)
-      allow(analyzer).to receive(:read_file).with("./package.json", false).and_return(packagefile)
+      allow(analyzer).to receive(:read_file).with("libyear_report.txt", true).and_return(npxfile)
+      allow(analyzer).to receive(:read_file).with("package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
+      allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
+      allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil) # TODO: will need to retest after we address ownerships
 
       analyzer.get_versions
+    end
+
+    before(:each) do
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(true)
     end
 
     it "should get expected data for owned gem" do
@@ -104,7 +110,11 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     end
   end
 
-  context "if new app" do
+  context "with new app" do
+    before(:each) do
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(false)
+    end
+
     describe "#add_dependency_graph" do
       let(:npm_list) do
         results = <<~EOR
@@ -205,6 +215,34 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         expect(b.parents[0].name).to eq("a")
         a = result["c"].parents[0].parents[0]
         expect(a.parents).to be_nil
+      end
+    end
+
+    describe "#calculate_version" do
+      let(:analyzer) { LibraryVersionAnalysis::Npm.new("test") }
+
+      it("should return simple version if both match") do
+        expect(analyzer.send(:calculate_version, "1.2.3", "1.2.3")).to eq("1.2.3")
+      end
+
+      it("should return correct order if new is greater than simple old") do
+        expect(analyzer.send(:calculate_version, "1.2.3", "2.1.3")).to eq("1.2.3..2.1.3")
+      end
+
+      it("should return correct order if new is less than simple old") do
+        expect(analyzer.send(:calculate_version, "2.1.4", "2.1.3")).to eq("2.1.3..2.1.4")
+      end
+
+      it("should replace left if new is less than left") do
+        expect(analyzer.send(:calculate_version, "1.2.4..2.1.3", "1.2.3")).to eq("1.2.3..2.1.3")
+      end
+
+      it("should replace right if new is greater than right") do
+        expect(analyzer.send(:calculate_version, "1.2.3..2.1.3", "2.2.3")).to eq("1.2.3..2.2.3")
+      end
+
+      it("should make no change if new is between left and right") do
+        expect(analyzer.send(:calculate_version, "1.2.3..2.1.3", "1.3.3")).to eq("1.2.3..2.1.3")
       end
     end
   end
