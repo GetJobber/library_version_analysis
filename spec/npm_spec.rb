@@ -182,6 +182,47 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         return results
       end
 
+      let(:npm_cycle) do
+        results = <<~EOR
+          {
+            "version": "1.0.0",
+            "name": "jobber",
+            "dependencies": {
+              "a": {  
+                "version": "1.1.35"
+               },
+              "browserslist": {
+                "version": "4.21.5",
+                "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.21.5.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "node-releases": {
+                    "version": "2.0.10",
+                    "resolved": "https://registry.npmjs.org/node-releases/-/node-releases-2.0.10.tgz",
+                    "overridden": false
+                  },
+                  "update-browserslist-db": {
+                    "version": "1.0.10",
+                    "resolved": "https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.0.10.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "browserslist": {
+                        "version": "4.21.5"
+                      },
+                      "escalade": {
+                        "version": "3.1.1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        EOR
+
+        return results
+      end
+
       it "should reverse simple chain" do
         parsed_results = {"a" => {}, "b" => {}, "c" => {}}
 
@@ -215,6 +256,16 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         expect(b.parents[0].name).to eq("a")
         a = result["c"].parents[0].parents[0]
         expect(a.parents).to be_nil
+      end
+
+      it "should nil out parents of library with cycle" do
+        parsed_results = {"a" => {}, "browserslist" => {}, "node-releases" => {}, "update-browserslist-db" => {}, "escalade" => {}}
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_cycle)
+
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        expect(result["browserslist"].parents).to be_nil
       end
     end
 

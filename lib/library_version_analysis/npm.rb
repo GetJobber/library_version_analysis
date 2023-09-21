@@ -45,8 +45,8 @@ module LibraryVersionAnalysis
       results = run_npm_list
       json = JSON.parse(results)
 
+      @visited_nodes = []
       nodes = build_dependency_graph(json["dependencies"], nil)
-
       missing_keys = {} # TODO: handle missing keys
       nodes.each do |key, graph|
         if parsed_results.has_key?(key)
@@ -194,10 +194,34 @@ module LibraryVersionAnalysis
       add_package_json_ownerships(parsed_results)
 
       # 2nd pass for transitive ownership
-      add_transitive_ownerships(parsed_results)
+      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+        add_transitive_ownerships_legacy(parsed_results)
+      else
+        add_transitive_ownerships(parsed_results)
+      end
     end
 
     def add_transitive_ownerships(parsed_results)
+      parsed_results.select { |_, result_data| LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(result_data.owner) }.each do |name, line_data|
+        owner = find_owner(line_data, parsed_results)
+        line_data.owner = LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(owner) ? :unknown : owner
+      end
+    end
+
+    def find_owner(line_data, parsed_results)
+      return nil if line_data.nil?
+      return line_data.owner unless LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(line_data.owner)
+
+      line_data.dependency_graph.parents&.each do |parent|
+        parent_line_data = parsed_results[parent.name]
+        owner = find_owner(parent_line_data, parsed_results)
+        return owner unless LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(owner)
+      end
+
+      return nil
+    end
+
+    def add_transitive_ownerships_legacy(parsed_results)
       transitive_mappings = build_transitive_mapping(parsed_results)
 
       parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
@@ -245,18 +269,30 @@ module LibraryVersionAnalysis
       end
     end
 
-    def build_dependency_graph(npm_nodes, parents)
+    def build_dependency_graph(npm_nodes, parents, depth=0)
       return {} if npm_nodes.nil?
 
       nodes = {}
       npm_nodes.keys.each do |name|
+        if push_unique(name).nil?
+          puts "Cycle detected: #{name}"
+          next
+        end
+
         parent = LibNode.new(name: name, parents: parents.nil? ? nil : [parents])
         nodes[name] = parent
-        new_nodes = build_dependency_graph(npm_nodes[name]["dependencies"], parent)
+        new_nodes = build_dependency_graph(npm_nodes[name]["dependencies"], parent, depth + 1)
+
+        @visited_nodes.pop
         nodes.merge!(new_nodes)
       end
 
       return nodes
+    end
+
+    def push_unique(node)
+      return nil if @visited_nodes.include?(node)
+      @visited_nodes.push(node)
     end
 
     def build_transitive_mapping(parsed_results)

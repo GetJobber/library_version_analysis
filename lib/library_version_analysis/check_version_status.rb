@@ -55,6 +55,10 @@ module LibraryVersionAnalysis
       LEGACY_DB_SYNC
     end
 
+    def self.unknown_owner?(owner)
+      owner.nil? || owner == "" || owner == :unknown || owner == :attention_needed || owner == :transitive_unspecified || owner == :unspecified
+    end
+
     def go(spreadsheet_id:, repository:, source:)
       puts "Check Version" if DEV_OUTPUT
 
@@ -89,7 +93,13 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id, repository)
       puts "  online" if DEV_OUTPUT
       online = Online.new(repository)
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, repository, "ONLINE")
+      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+        source = "ONLINE"
+      else
+        source = "RUBYGEMS"
+      end
+
+      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
 
       return meta_data_online, mode_online
     end
@@ -97,7 +107,12 @@ module LibraryVersionAnalysis
     def go_online_node(spreadsheet_id, repository)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new(repository)
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, repository, "ONLINE NODE")
+      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+        source = "ONLINE NODE"
+      else
+        source = "NPM"
+      end
+      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, repository, source)
 
       return meta_data_online_node, mode_online_node
     end
@@ -105,7 +120,12 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id, repository)
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new(repository)
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, repository, "MOBILE")
+      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+        source = "MOBILE"
+      else
+        source = "NPM"
+      end
+      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
 
       return meta_data_mobile, mode_mobile
     end
@@ -124,7 +144,7 @@ module LibraryVersionAnalysis
         puts "    slack notify #{source}" if DEV_OUTPUT
         notify(parsed_results)
       else
-        data = server_data(parsed_results, repository)
+        data = server_data(parsed_results, repository, source)
 
         puts "    updating server {respository}" if DEV_OUTPUT
         update_server(data)
@@ -141,7 +161,7 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
-    def server_data(results, repository)
+    def server_data(results, repository, source)
       libraries = []
       new_versions = []
       vulns = []
@@ -162,6 +182,7 @@ module LibraryVersionAnalysis
       end
 
       {
+        source: source,
         repository: repository,
         libraries: libraries,
         new_versions: new_versions,
