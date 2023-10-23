@@ -74,7 +74,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
     end
 
     before(:each) do
-      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(true)
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(true)
     end
 
     it "should get expected data for owned gem" do
@@ -124,7 +124,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
   context "with new app" do
     before(:each) do
-      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(false)
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(false)
     end
 
     describe "#add_dependency_graph" do

@@ -41,7 +41,7 @@ module LibraryVersionAnalysis
   end
 
   LEGACY_DB_SYNC = false
-  DEV_OUTPUT = true # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)
@@ -51,7 +51,7 @@ module LibraryVersionAnalysis
       return c.build_mode_results(mode_results)
     end
 
-    def self.is_legacy?
+    def self.legacy?
       LEGACY_DB_SYNC
     end
 
@@ -69,6 +69,7 @@ module LibraryVersionAnalysis
         mobile = true
       else
         online = true
+        online_node = true
         online_node = true
         mobile = false
       end
@@ -93,7 +94,7 @@ module LibraryVersionAnalysis
     def go_online(spreadsheet_id, repository)
       puts "  online" if DEV_OUTPUT
       online = Online.new(repository)
-      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         source = "ONLINE"
       else
         source = "RUBYGEMS"
@@ -107,7 +108,7 @@ module LibraryVersionAnalysis
     def go_online_node(spreadsheet_id, repository)
       puts "  online node" if DEV_OUTPUT
       mobile_node = Npm.new(repository)
-      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         source = "ONLINE NODE"
       else
         source = "NPM"
@@ -120,7 +121,7 @@ module LibraryVersionAnalysis
     def go_mobile(spreadsheet_id, repository)
       puts "  mobile" if DEV_OUTPUT
       mobile = Npm.new(repository)
-      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         source = "MOBILE"
       else
         source = "NPM"
@@ -135,7 +136,7 @@ module LibraryVersionAnalysis
 
       mode = get_mode_summary(parsed_results, meta_data)
 
-      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         data = spreadsheet_data(parsed_results, source)
 
         puts "    updating spreadsheet #{source}" if DEV_OUTPUT
@@ -144,6 +145,7 @@ module LibraryVersionAnalysis
         puts "    slack notify #{source}" if DEV_OUTPUT
         notify(parsed_results)
       else
+        source = "gemfile" if source == "RUBYGEMS" #TODO: Need to clean up source. This is an ugly hack
         data = server_data(parsed_results, repository, source)
 
         puts "    updating server {respository}" if DEV_OUTPUT
@@ -182,7 +184,7 @@ module LibraryVersionAnalysis
       end
 
       {
-        source: source,
+        source: source.downcase,
         repository: repository,
         libraries: libraries,
         new_versions: new_versions,
@@ -192,8 +194,9 @@ module LibraryVersionAnalysis
     end
 
     def update_server(data)
-      uri = URI('http://127.0.0.1:4000/api/libraries/upload')
+      uri = URI(ENV["LIBRARY_UPLOAD_URL"])
       http = Net::HTTP.new(uri.host, uri.port)
+      http.read_timeout = 300
       req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
       req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
       req.body = data.to_json

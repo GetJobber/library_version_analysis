@@ -6,7 +6,7 @@ module LibraryVersionAnalysis
 
     def get_versions
       all_libraries = {}
-      unless LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
         puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
         all_libraries = add_all_libraries
       end
@@ -25,9 +25,12 @@ module LibraryVersionAnalysis
       puts("\tNPM dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
       add_dependabot_findings(parsed_results, meta_data, @github_repo)
 
-      unless LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
         puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
         add_dependency_graph(parsed_results)
+
+        puts("\tNPM breaking cycles") if LibraryVersionAnalysis::DEV_OUTPUT
+        break_cycles(parsed_results)
       end
 
       puts("\tNPM adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
@@ -41,14 +44,17 @@ module LibraryVersionAnalysis
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, "NPM")
     end
 
+    # used when building dependency graphs for upload
     def add_dependency_graph(parsed_results)
       results = run_npm_list
       json = JSON.parse(results)
 
       @visited_nodes = []
-      nodes = build_dependency_graph(json["dependencies"], nil)
+      @parent_count = 0
+      all_nodes = {}
+      all_nodes = build_dependency_graph(all_nodes, json["dependencies"], nil)
       missing_keys = {} # TODO: handle missing keys
-      nodes.each do |key, graph|
+      all_nodes.each do |key, graph|
         if parsed_results.has_key?(key)
           parsed_results[key]["dependency_graph"] = graph
         else
@@ -56,7 +62,9 @@ module LibraryVersionAnalysis
         end
       end
 
-      return nodes
+      puts "Created dependency graph for #{@parent_count} libraries"
+
+      return all_nodes
     end
 
     private
@@ -101,7 +109,7 @@ module LibraryVersionAnalysis
       return results
     end
 
-    def add_all_libraries()
+    def add_all_libraries
       all_libraries = {}
       cmd = "npm list --all --silent"
 
@@ -194,7 +202,7 @@ module LibraryVersionAnalysis
       add_package_json_ownerships(parsed_results)
 
       # 2nd pass for transitive ownership
-      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         add_transitive_ownerships_legacy(parsed_results)
       else
         add_transitive_ownerships(parsed_results)
@@ -203,22 +211,30 @@ module LibraryVersionAnalysis
 
     def add_transitive_ownerships(parsed_results)
       parsed_results.select { |_, result_data| LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(result_data.owner) }.each do |name, line_data|
-        owner = find_owner(line_data, parsed_results)
+        @current_library = name
+        owner = find_owner(line_data.dependency_graph, parsed_results)
         line_data.owner = LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(owner) ? :unknown : owner
       end
     end
 
-    def find_owner(line_data, parsed_results)
-      return nil if line_data.nil?
-      return line_data.owner unless LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(line_data.owner)
+    def find_owner(dependency_graph, parsed_results)
+      return nil if dependency_graph.nil?
 
-      line_data.dependency_graph.parents&.each do |parent|
-        parent_line_data = parsed_results[parent.name]
-        owner = find_owner(parent_line_data, parsed_results)
-        return owner unless LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(owner)
+      owner = parsed_results[dependency_graph.name]&.owner
+      return owner unless LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(owner)
+
+      parent_owner = nil
+
+      dependency_graph.parents&.each do |parent|
+        parent_owner = parsed_results[parent.name]&.owner
+        return parent_owner unless LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(parent_owner)
+
+        parent_owner = find_owner(parent, parsed_results)
+        is_unknown = LibraryVersionAnalysis::CheckVersionStatus.unknown_owner?(parent_owner)
+        break unless is_unknown
       end
 
-      return nil
+      return parent_owner
     end
 
     def add_transitive_ownerships_legacy(parsed_results)
@@ -269,30 +285,75 @@ module LibraryVersionAnalysis
       end
     end
 
-    def build_dependency_graph(npm_nodes, parents, depth=0)
-      return {} if npm_nodes.nil?
+    # Recursive method used when building dependency graph for upload
+    def build_dependency_graph(all_nodes, new_nodes, parents, depth=0)
+      return all_nodes if new_nodes.nil?
 
-      nodes = {}
-      npm_nodes.keys.each do |name|
-        if push_unique(name).nil?
-          puts "Cycle detected: #{name}"
-          next
+      new_nodes.keys.each do |name|
+        # if push_unique(name).nil?
+        #   puts "Cycle detected: #{name}"
+        #   next
+        # end
+
+        parent = all_nodes[name]
+        if parent.nil?
+          @parent_count += 1
+          parent = LibNode.new(name: name, parents: parents.nil? ? nil : [parents])
+          all_nodes[name] = parent
         end
 
-        parent = LibNode.new(name: name, parents: parents.nil? ? nil : [parents])
-        nodes[name] = parent
-        new_nodes = build_dependency_graph(npm_nodes[name]["dependencies"], parent, depth + 1)
+        existing_parents = parent.parents
+        if existing_parents.nil? && !parents.nil?
+          existing_parents = []
+          parent.parents = existing_parents
+        end
+
+        existing_parents.push(parents) if !parents.nil? && !existing_parents.include?(parents)
+
+        all_nodes = build_dependency_graph(all_nodes, new_nodes[name]["dependencies"], parent, depth + 1)
 
         @visited_nodes.pop
-        nodes.merge!(new_nodes)
       end
 
-      return nodes
+      return all_nodes
     end
 
     def push_unique(node)
       return nil if @visited_nodes.include?(node)
+
       @visited_nodes.push(node)
+    end
+
+    def break_cycles(parsed_results)
+      # Do a depth first pre-order traversal of the dependency graphs. Keep nodes on stack, if a node
+      # is already on the stack, then we have a cycle. Remove the cycle by removing the parent from the
+      # dependency graph.
+      parsed_results.each do |_, line_data|
+        next if line_data["dependency_graph"].nil?
+
+        @visited_nodes = []
+        break_cycles_for_graph(line_data["dependency_graph"])
+      end
+    end
+
+    def break_cycles_for_graph(node)
+      return if node.nil?
+
+      if push_unique(node.name).nil?
+        puts "\t\tCycle detected: #{node.name}"
+        # binding.pry if node.name == "execa"
+        return true
+      end
+
+      new_parents = []
+      node.parents&.each do |parent|
+        cycle_found = break_cycles_for_graph(parent)
+        new_parents.append(parent) unless cycle_found
+      end
+      node.parents = new_parents
+
+      @visited_nodes.pop
+      return false
     end
 
     def build_transitive_mapping(parsed_results)
@@ -336,16 +397,16 @@ module LibraryVersionAnalysis
     end
 
     def run_npm_list
-      if LibraryVersionAnalysis::CheckVersionStatus.is_legacy?
+      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         cmd = "npm list --silent"
       else
         cmd = "npm list --all --json --silent"
       end
-      results, captured_err, status = Open3.capture3(cmd)
+      results, _, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
-        warn "status: #{status}"
-        warn "captured_err: #{captured_err}"
+        parsed = JSON.parse(results)
+        warn "error while running npm list: #{parsed['error']}"
       end
       results
     end

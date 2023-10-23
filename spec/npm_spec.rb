@@ -48,7 +48,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       │ │ └── tslib@2.2.0
     DOC
   end
-
+  
   def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:)
     expect(result[:owner]).to eq(owner)
     expect(result[:current_version]).to eq(current_version)
@@ -72,7 +72,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     end
 
     before(:each) do
-      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(true)
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(true)
     end
 
     it "should get expected data for owned gem" do
@@ -112,7 +112,48 @@ RSpec.describe LibraryVersionAnalysis::Npm do
 
   context "with new app" do
     before(:each) do
-      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:is_legacy?).and_return(false)
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(false)
+    end
+
+    let(:npm_cycle) do
+      results = <<~EOR
+        {
+          "version": "1.0.0",
+          "name": "jobber",
+          "dependencies": {
+            "a": {  
+              "version": "1.1.35"
+             },
+            "browserslist": {
+              "version": "4.21.5",
+              "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.21.5.tgz",
+              "overridden": false,
+              "dependencies": {
+                "node-releases": {
+                  "version": "2.0.10",
+                  "resolved": "https://registry.npmjs.org/node-releases/-/node-releases-2.0.10.tgz",
+                  "overridden": false
+                },
+                "update-browserslist-db": {
+                  "version": "1.0.10",
+                  "resolved": "https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.0.10.tgz",
+                  "overridden": false,
+                  "dependencies": {
+                    "browserslist": {
+                      "version": "4.21.5"
+                    },
+                    "escalade": {
+                      "version": "3.1.1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      EOR
+
+      return results
     end
 
     describe "#add_dependency_graph" do
@@ -182,40 +223,29 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         return results
       end
 
-      let(:npm_cycle) do
+      let(:npm_multi_parent) do
         results = <<~EOR
           {
             "version": "1.0.0",
             "name": "jobber",
             "dependencies": {
-              "a": {  
-                "version": "1.1.35"
-               },
-              "browserslist": {
-                "version": "4.21.5",
-                "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.21.5.tgz",
-                "overridden": false,
+              "a": {
+                "version": "1.1.35",
                 "dependencies": {
-                  "node-releases": {
-                    "version": "2.0.10",
-                    "resolved": "https://registry.npmjs.org/node-releases/-/node-releases-2.0.10.tgz",
-                    "overridden": false
-                  },
-                  "update-browserslist-db": {
-                    "version": "1.0.10",
-                    "resolved": "https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.0.10.tgz",
-                    "overridden": false,
-                    "dependencies": {
-                      "browserslist": {
-                        "version": "4.21.5"
-                      },
-                      "escalade": {
-                        "version": "3.1.1"
-                      }
-                    }
+                  "b": {
+                    "version": "1.16.2"
+                  }
+                }
+              },
+              "c": {
+                "version": "1.1.36",
+                "dependencies": {
+                  "b": {
+                    "version": "1.16.2"
                   }
                 }
               }
+
             }
           }
         EOR
@@ -240,6 +270,17 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         expect(a.parents).to be_nil
       end
 
+      it "should handle multiple parents" do
+        parsed_results = {"a" => {}, "b" => {}, "c" => {}}
+
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_multi_parent)
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        b = result["b"]
+        expect(b.parents.count).to eq(2)
+      end
+
       it "should handle two leaf tree" do
         parsed_results = {"a" => {}, "b" => {}, "c" => {}, "d" => {}}
 
@@ -257,15 +298,19 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         a = result["c"].parents[0].parents[0]
         expect(a.parents).to be_nil
       end
+    end
 
+    describe "#break_cycles" do
       it "should nil out parents of library with cycle" do
         parsed_results = {"a" => {}, "browserslist" => {}, "node-releases" => {}, "update-browserslist-db" => {}, "escalade" => {}}
         analyzer = LibraryVersionAnalysis::Npm.new("test")
         allow(analyzer).to receive(:run_npm_list).and_return(npm_cycle)
 
-        result = analyzer.add_dependency_graph(parsed_results)
+        analyzer.add_dependency_graph(parsed_results)
+        expect(parsed_results["browserslist"]["dependency_graph"].parents.find { |x| x.name == "update-browserslist-db" }.parents.length).to eq(1)
 
-        expect(result["browserslist"].parents).to be_nil
+        analyzer.send(:break_cycles, parsed_results)
+        expect(parsed_results["browserslist"]["dependency_graph"].parents.find { |x| x.name == "update-browserslist-db" }.parents.length).to eq(0)
       end
     end
 
