@@ -1,5 +1,9 @@
+require "library_version_analysis/ownership"
+
 module LibraryVersionAnalysis
   class Online
+    include LibraryVersionAnalysis::Ownership
+
     def initialize(github_repo)
       @github_repo = github_repo
     end
@@ -154,15 +158,13 @@ module LibraryVersionAnalysis
     end
 
     def add_ownerships(parsed_results)
-      up_to_date_ownership = add_ownership_from_gemfile(parsed_results)
+      add_ownership_from_gemfile(parsed_results)
       add_special_case_ownerships(parsed_results)
-      add_ownership_from_transitive(parsed_results, up_to_date_ownership)
+      add_transitive_ownerships(parsed_results)
     end
 
     def add_ownership_from_gemfile(parsed_results)
       data = read_file
-
-      up_to_date_ownership = {}
 
       data.each_line do |line|
         scan_result = line.scan(/\s*jgem\s*(\S*),\s*"(\S*)"/)
@@ -173,15 +175,10 @@ module LibraryVersionAnalysis
         gem = scan_result[0][1]
 
         version = parsed_results[gem]
-        if version.nil?
-          up_to_date_ownership[gem] = owner
-          next
-        end
+        next if version.nil?
 
         version.owner = owner
       end
-
-      return up_to_date_ownership
     end
 
     def read_file
@@ -190,30 +187,6 @@ module LibraryVersionAnalysis
       file.close
 
       return data
-    end
-
-    def add_ownership_from_transitive(parsed_results, up_to_date_ownership)
-      spec_set = why_init
-
-      parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
-        path = why(name, spec_set)
-
-        if path.length > 1
-          parent_name = path[0].name
-          if parsed_results[parent_name].nil? && up_to_date_ownership.has_key?(parent_name)
-            line_data.owner = up_to_date_ownership[parent_name]
-            line_data.parent = parent_name
-          elsif parsed_results[parent_name].nil? || parsed_results[parent_name].owner == :unknown || parsed_results[parent_name].owner == :unspecified
-            line_data.owner = :transitive_unspecified
-          else
-            parent_owner = parsed_results[parent_name].owner
-            line_data.owner = parent_owner
-            line_data.parent = parent_name
-          end
-        else
-          line_data.owner = :unspecified
-        end
-      end
     end
 
     def add_special_case_ownerships(parsed_results)

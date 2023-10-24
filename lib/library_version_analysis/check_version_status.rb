@@ -55,10 +55,6 @@ module LibraryVersionAnalysis
       LEGACY_DB_SYNC
     end
 
-    def self.unknown_owner?(owner)
-      owner.nil? || owner == "" || owner == :unknown || owner == :attention_needed || owner == :transitive_unspecified || owner == :unspecified
-    end
-
     def go(spreadsheet_id:, repository:, source:)
       puts "Check Version" if DEV_OUTPUT
 
@@ -69,7 +65,6 @@ module LibraryVersionAnalysis
         mobile = true
       else
         online = true
-        online_node = true
         online_node = true
         mobile = false
       end
