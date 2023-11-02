@@ -5,7 +5,7 @@ SpecSetStruct = Struct.new(
   :name,
   :dependencies,
   keyword_init: true
-)do |new_class|
+) do
   def first
     return self
   end
@@ -47,7 +47,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
     DOC
   end
 
-  def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:)
+  def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:) # rubocop:disable Metrics/AbcSize, Metrics/ParameterLists
     expect(result[:owner]).to eq(owner)
     expect(result[:current_version]).to eq(current_version)
     expect(result[:latest_version]).to eq(latest_version)
@@ -103,7 +103,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       )
     end
 
-    # TODO restore this test after we address ownerships
+    # TODO: restore this test after we address ownerships
     # it "should returns expected data for transitive" do
     #   do_compare(
     #     result: subject[0]["transitivebox"],

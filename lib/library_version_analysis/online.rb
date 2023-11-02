@@ -8,7 +8,7 @@ module LibraryVersionAnalysis
       @github_repo = github_repo
     end
 
-    def get_versions
+    def get_versions # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts("\tOnline running libyear versions") if LibraryVersionAnalysis::DEV_OUTPUT
       libyear_results = run_libyear("--versions")
 
@@ -25,7 +25,7 @@ module LibraryVersionAnalysis
 
       puts("\tOnline running libyear libyear") if LibraryVersionAnalysis::DEV_OUTPUT
       libyear_results = run_libyear("--libyear")
-      unless libyear_results.nil?
+      unless libyear_results.nil? # rubocop:disable Style/IfUnlessModifier
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
@@ -84,11 +84,11 @@ module LibraryVersionAnalysis
       results
     end
 
-    def parse_libyear_versions(results)
+    def parse_libyear_versions(results) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_versions = {}
       meta_data = MetaData.new
 
-      results.each_line do |line|
+      results.each_line do |line| # rubocop:disable Metrics/BlockLength
         # scan_result = line.scan(/\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*\[(\d*), (\d*), (\d*)\]\s*(\S*)/) KEEP THIS FOR LIBYEAR FIX
         scan_result = line.scan(/\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*\[(\d*), (\d*), (\d*)\]/)
 
@@ -136,7 +136,7 @@ module LibraryVersionAnalysis
       LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, "RUBYGEMS")
     end
 
-    def parse_libyear_libyear(results, parsed_results, meta_data)
+    def parse_libyear_libyear(results, parsed_results, meta_data) # rubocop:disable Metrics/AbcSize
       results.each_line do |line|
         if line.include?("System is")
           data = check_for("System is (.*) libyears behind", line)
@@ -272,7 +272,7 @@ module LibraryVersionAnalysis
           d.type == :runtime && d.name == parent.name
         end
       end
-      if children.empty?
+      if children.empty? # rubocop:disable Style/GuardClause
         return path
       else
         children.each do |child|
@@ -292,7 +292,7 @@ module LibraryVersionAnalysis
       specs.first
     end
 
-    def build_dependency_graph(spec, nodes, spec_set)
+    def build_dependency_graph(spec, nodes, spec_set) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       current_node = nodes[spec.name]
       if current_node.nil?
         current_node = LibNode.new(name: spec.name)

@@ -56,7 +56,7 @@ module LibraryVersionAnalysis
       LEGACY_DB_SYNC
     end
 
-    def go(spreadsheet_id:, repository:, source:)
+    def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts "Check Version" if DEV_OUTPUT
 
       # TODO: This will change a bit later.
@@ -141,7 +141,7 @@ module LibraryVersionAnalysis
         puts "    slack notify #{source}" if DEV_OUTPUT
         notify(parsed_results)
       else
-        source = "gemfile" if source == "RUBYGEMS" #TODO: Need to clean up source. This is an ugly hack
+        source = "gemfile" if source == "RUBYGEMS" # TODO: Need to clean up source. This is an ugly hack
         data = server_data(parsed_results, repository, source)
 
         puts "    updating server {respository}" if DEV_OUTPUT
@@ -159,7 +159,7 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
-    def server_data(results, repository, source)
+    def server_data(results, repository, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       libraries = []
       new_versions = []
       vulns = []
@@ -168,7 +168,7 @@ module LibraryVersionAnalysis
       missing_dependency_keys = [] # TODO: handle missing keys
       results.each do |name, row|
         libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version, source: row.source})
-        unless row.cvss.nil? || row.cvss == ""
+        unless row.cvss.nil? || row.cvss == "" # rubocop:disable Style/IfUnlessModifier
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch})
@@ -243,7 +243,7 @@ module LibraryVersionAnalysis
       service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
     end
 
-    def get_mode_summary(results, meta_data)
+    def get_mode_summary(results, meta_data) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       mode_summary = ModeSummary.new
       mode_summary.one_major = 0
       mode_summary.two_major = 0
@@ -288,14 +288,14 @@ module LibraryVersionAnalysis
 
       results.each do |hash_line|
         line = hash_line[1]
-        if (!line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time )
+        if !line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time
           message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.cvss}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
           SlackNotify.notify(message, "security-alerts")
         end
       end
     end
 
-    def unowned_needs_attention?(line)
+    def unowned_needs_attention?(line) # rubocop:disable Metrics/AbcSize
       return false unless line.owner == :unspecified || line.owner == :transitive_unspecified || line.owner == :unknown
 
       return true if line.major.positive?

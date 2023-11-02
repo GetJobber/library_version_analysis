@@ -34,7 +34,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     DOC
   end
 
-  def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:)
+  def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:) # rubocop:disable Metrics/AbcSize, Metrics/ParameterLists
     expect(result[:owner]).to eq(owner)
     expect(result[:current_version]).to eq(current_version)
     expect(result[:latest_version]).to eq(latest_version)

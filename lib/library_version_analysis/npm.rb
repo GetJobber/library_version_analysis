@@ -8,7 +8,7 @@ module LibraryVersionAnalysis
       @github_repo = github_repo
     end
 
-    def get_versions
+    def get_versions # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_libraries = {}
       unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
         puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
@@ -49,7 +49,7 @@ module LibraryVersionAnalysis
     end
 
     # used when building dependency graphs for upload
-    def add_dependency_graph(parsed_results)
+    def add_dependency_graph(parsed_results) # rubocop:disable Metrics/MethodLength
       results = run_npm_list
       json = JSON.parse(results)
 
@@ -113,12 +113,12 @@ module LibraryVersionAnalysis
       return results
     end
 
-    def add_all_libraries
+    def add_all_libraries # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_libraries = {}
       cmd = "npm list --all --silent"
 
       # ignore errors for this. It actually will fail, but we hopefully don't care
-      results, captured_err, status = Open3.capture3(cmd)
+      results, _captured_err, _status = Open3.capture3(cmd)
 
       results.each_line do |line|
         next if line.include?("UNMET OPTIONAL DEPENDENCY")
@@ -151,7 +151,7 @@ module LibraryVersionAnalysis
       )
     end
 
-    def parse_libyear(results, all_libraries)
+    def parse_libyear(results, all_libraries) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       data = JSON.parse(results)
 
       meta_data = create_blank_metadata
@@ -234,14 +234,14 @@ module LibraryVersionAnalysis
     def calculate_version(current_version, new_version)
       left, right = current_version.split("..")
       if right.nil?
-        if left == new_version
+        if left == new_version # rubocop:disable Style/GuardClause
           return current_version
         else
           right = left
         end
       end
 
-      if new_version < left
+      if new_version < left # rubocop:disable Style/GuardClause
         return "#{new_version}..#{right}"
       elsif new_version > right
         return "#{left}..#{new_version}"
@@ -263,7 +263,7 @@ module LibraryVersionAnalysis
     end
 
     # Recursive method used when building dependency graph for upload
-    def build_dependency_graph(all_nodes, new_nodes, parents, depth=0)
+    def build_dependency_graph(all_nodes, new_nodes, parents, depth=0) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       return all_nodes if new_nodes.nil?
 
       new_nodes.keys.each do |name|
@@ -333,7 +333,7 @@ module LibraryVersionAnalysis
       return false
     end
 
-    def build_transitive_mapping(parsed_results)
+    def build_transitive_mapping(parsed_results) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       mappings = {}
       results = run_npm_list
       # results <<~EOR

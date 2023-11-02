@@ -16,11 +16,10 @@ module LibraryVersionAnalysis
       end
     end
 
-    def find_owner(dependency_graph, parsed_results)
+    def find_owner(dependency_graph, parsed_results) # rubocop:disable Metrics/AbcSize
       return nil if dependency_graph.nil?
 
       owner = parsed_results[dependency_graph.name]&.owner
-      binding.pry unless unknown_owner?(owner)
       return owner unless unknown_owner?(owner)
 
       parent_owner = nil
@@ -28,7 +27,7 @@ module LibraryVersionAnalysis
       dependency_graph.parents&.each do |parent|
         parent_owner = parsed_results[parent.name]&.owner
         parent_owner_reason = parsed_results[parent.name]&.owner_reason
-        owner_reason = (parent_owner_reason.nil? || parent_owner_reason == "-assigned-") ? parent.name : parent_owner_reason
+        owner_reason = (parent_owner_reason.nil? || parent_owner_reason == "-assigned-") ? parent.name : parent_owner_reason # rubocop:disable Style/TernaryParentheses
         return parent_owner, owner_reason unless unknown_owner?(parent_owner)
 
         parent_owner = find_owner(parent, parsed_results)
