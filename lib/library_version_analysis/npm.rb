@@ -253,11 +253,12 @@ module LibraryVersionAnalysis
     def add_package_json_ownerships(parsed_results)
       package_file = "package.json"
       file = read_file(package_file, false)
-      ownerships = {}
       package_data = JSON.parse(file)
       package_data["ownerships"].each do |name, owner|
-        ownerships[name] = owner
-        parsed_results[name].owner = owner if parsed_results.has_key?(name)
+        if parsed_results.has_key?(name)
+          parsed_results[name].owner = owner
+          parsed_results[name].owner_reason = LibraryVersionAnalysis::Ownership::OWNER_REASON_ASSIGNED
+        end
       end
     end
 

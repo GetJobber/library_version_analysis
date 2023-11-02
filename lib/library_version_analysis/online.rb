@@ -178,6 +178,7 @@ module LibraryVersionAnalysis
         next if version.nil?
 
         version.owner = owner
+        version.owner_reason = LibraryVersionAnalysis::Ownership::OWNER_REASON_ASSIGNED
       end
     end
 
@@ -215,10 +216,11 @@ module LibraryVersionAnalysis
 
       special_cases.each do |name, owner|
         if parsed_results.has_key?(name.to_s)
-          parsed_results[name.to_s].owner = owner if parsed_results.has_key?(name.to_s)
+          parsed_results[name.to_s].owner = owner
+          parsed_results[name.to_s].owner_reason = "-assigned-in-code-"
           parsed_results[name.to_s].parent = "Rails"
         else
-          parsed_results[name.to_s] = Versionline.new(owner: owner, major: 0, minor: 0, patch: 0, source: "gemfile")
+          parsed_results[name.to_s] = Versionline.new(owner: owner, owner_reason: "-assigned-in-code-", major: 0, minor: 0, patch: 0, source: "gemfile")
         end
       end
     end

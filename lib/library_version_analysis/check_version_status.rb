@@ -8,6 +8,7 @@ require "pry-byebug"
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
+    :owner_reason,
     :parent,
     :current_version,
     :current_version_date,
@@ -166,7 +167,7 @@ module LibraryVersionAnalysis
 
       missing_dependency_keys = [] # TODO: handle missing keys
       results.each do |name, row|
-        libraries.push({name: name, owner: row.owner, version: row.current_version, source: row.source})
+        libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version, source: row.source})
         unless row.cvss.nil? || row.cvss == ""
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
