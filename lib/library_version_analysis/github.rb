@@ -68,6 +68,7 @@ module LibraryVersionAnalysis
         else
           vv = Versionline.new(
             owner: :unknown,
+            current_version: "?",
             major: 0,
             minor: 0,
             patch: 0,

@@ -171,7 +171,7 @@ module LibraryVersionAnalysis
         unless row.cvss.nil? || row.cvss == "" # rubocop:disable Style/IfUnlessModifier
           vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
         end
-        new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch})
+        new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch}) unless row.latest_version.nil?
         if row.dependency_graph.nil?
           missing_dependency_keys.push(name)
         else
@@ -197,7 +197,7 @@ module LibraryVersionAnalysis
       req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
       req.body = data.to_json
       res = http.request(req)
-      puts "response #{res.body}"
+      puts "response #{res.code}:#{res.msg}\n#{res.body}"
     end
 
     def spreadsheet_data(results, source)
