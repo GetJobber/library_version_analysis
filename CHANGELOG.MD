@@ -28,3 +28,7 @@
 
 1.4.4
     Fixed to use Slack with new Ruby and removed OpenSSL hack
+
+1.4.5
+    Turned off dev logging. Breaks metrics. Also refactored to schema on class load
+
