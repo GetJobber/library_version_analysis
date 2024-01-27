@@ -4,6 +4,7 @@ require "library_version_analysis"
 
 require "pry"
 
-LibraryVersionAnalysis::Analyze.go("Jobber")
+#LibraryVersionAnalysis::Analyze.go("Jobber", "npm")
+LibraryVersionAnalysis::Analyze.go("Jobber", "gemfile")
 
 

@@ -53,7 +53,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
       allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil)
 
-      analyzer.get_versions
+      analyzer.get_versions("test")
     end
 
     let(:npmlist) do
@@ -363,7 +363,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         allow(analyzer).to receive(:run_npm_list).and_return(npm_list)
         allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
 
-        analyzer.get_versions
+        analyzer.get_versions("test")
       end
 
       let(:package_file) do

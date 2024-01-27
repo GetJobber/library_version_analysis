@@ -8,7 +8,7 @@ module LibraryVersionAnalysis
       @github_repo = github_repo
     end
 
-    def get_versions # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def get_versions(source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_libraries = {}
       unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
         puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
@@ -27,7 +27,7 @@ module LibraryVersionAnalysis
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
 
       puts("\tNPM dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
-      add_dependabot_findings(parsed_results, meta_data, @github_repo)
+      add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
 
       unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
         puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
@@ -44,8 +44,8 @@ module LibraryVersionAnalysis
       return parsed_results, meta_data
     end
 
-    def add_dependabot_findings(parsed_results, meta_data, github_repo)
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, "NPM")
+    def add_dependabot_findings(parsed_results, meta_data, github_repo, source)
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, source)
     end
 
     # used when building dependency graphs for upload
@@ -146,8 +146,7 @@ module LibraryVersionAnalysis
         owner: :unknown,
         current_version: current_version,
         current_version_date: "",
-        latest_version_date: "",
-        source: "npm"
+        latest_version_date: ""
       )
     end
 

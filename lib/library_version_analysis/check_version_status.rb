@@ -19,7 +19,7 @@ module LibraryVersionAnalysis
     :minor,
     :patch,
     :age,
-    :source,
+    # :source,
     :dependency_graph,
     :dependabot_created_at,
     :dependabot_permalink,
@@ -43,20 +43,62 @@ module LibraryVersionAnalysis
 
   LEGACY_DB_SYNC = false
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  OBFUSCATE_WORDS = true # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)
       c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
+      if legacy?
+        mode_results = c.go_legacy(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
+      else
+        mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
+      end
 
       return c.build_mode_results(mode_results)
+    end
+
+    def initialize
+      if OBFUSCATE_WORDS # rubocop:disable Style/GuardClause
+        @word_list = []
+
+        File.open("/usr/share/dict/words").each { |line| @word_list << line.strip }
+        @word_list.shuffle!(random: Random.new(ENV["WORD_LIST_RANDOM_SEED"].to_i))
+        @word_list_length = @word_list.length
+      end
     end
 
     def self.legacy?
       LEGACY_DB_SYNC
     end
 
+    def obfuscate(data)
+      idx = data.sum % @word_list_length
+      return "#{data}:#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
+    end
+
     def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      puts "Check Version" if DEV_OUTPUT
+
+      case source
+      when "npm"
+        meta_data, mode = go_npm(spreadsheet_id, repository, source)
+        print_summary("mobile", meta_data, mode) if DEV_OUTPUT
+      when "gemfile"
+        meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
+        print_summary("gemfile", meta_data, mode) if DEV_OUTPUT
+      else
+        puts "Don't recognize source #{source}"
+        exit(-1)
+      end
+
+      puts "Done" if DEV_OUTPUT
+
+      return {
+        "#{repository}/#{source}": mode,
+      }
+    end
+
+    def go_legacy(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts "Check Version" if DEV_OUTPUT
 
       # TODO: This will change a bit later.
@@ -71,8 +113,8 @@ module LibraryVersionAnalysis
       end
 
       meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id, repository) if online_node
-      meta_data_online, mode_online = go_online(spreadsheet_id, repository) if online
-      meta_data_mobile, mode_mobile = go_mobile(spreadsheet_id, repository) if mobile
+      meta_data_online, mode_online = go_gemfile(spreadsheet_id, repository, nil) if online
+      meta_data_mobile, mode_mobile = go_npm(spreadsheet_id, repository, nil) if mobile
 
       print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
       print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
@@ -87,48 +129,44 @@ module LibraryVersionAnalysis
       }
     end
 
-    def go_online(spreadsheet_id, repository)
-      puts "  online" if DEV_OUTPUT
-      online = Online.new(repository)
+    def go_gemfile(spreadsheet_id, repository, source)
+      puts "  gemfile" if DEV_OUTPUT
+      gemfile = Gemfile.new(repository)
       if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         source = "ONLINE"
-      else
-        source = "RUBYGEMS"
       end
 
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
+      meta_data, mode = get_version_summary(gemfile, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
 
-      return meta_data_online, mode_online
+      return meta_data, mode
     end
 
-    def go_online_node(spreadsheet_id, repository)
-      puts "  online node" if DEV_OUTPUT
-      mobile_node = Npm.new(repository)
-      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        source = "ONLINE NODE"
-      else
-        source = "NPM"
-      end
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, repository, source)
+    # def go_online_node(spreadsheet_id, repository)
+    #   puts "  online node" if DEV_OUTPUT
+    #   mobile_node = Npm.new(repository)
+    #   if LibraryVersionAnalysis::CheckVersionStatus.legacy?
+    #     source = "ONLINE NODE"
+    #   else
+    #     source = "NPM"
+    #   end
+    #   meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, repository, source)
+    #
+    #   return meta_data_online_node, mode_online_node
+    # end
 
-      return meta_data_online_node, mode_online_node
-    end
-
-    def go_mobile(spreadsheet_id, repository)
-      puts "  mobile" if DEV_OUTPUT
-      mobile = Npm.new(repository)
+    def go_npm(spreadsheet_id, repository, source)
+      puts "  npm" if DEV_OUTPUT
+      npm = Npm.new(repository)
       if LibraryVersionAnalysis::CheckVersionStatus.legacy?
         source = "MOBILE"
-      else
-        source = "NPM"
       end
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
+      meta_data, mode = get_version_summary(npm, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
 
-      return meta_data_mobile, mode_mobile
+      return meta_data, mode
     end
 
     def get_version_summary(parser, range, spreadsheet_id, repository, source)
-      parsed_results, meta_data = parser.get_versions
+      parsed_results, meta_data = parser.get_versions(source)
 
       mode = get_mode_summary(parsed_results, meta_data)
 
@@ -141,10 +179,9 @@ module LibraryVersionAnalysis
         puts "    slack notify #{source}" if DEV_OUTPUT
         notify(parsed_results)
       else
-        source = "gemfile" if source == "RUBYGEMS" # TODO: Need to clean up source. This is an ugly hack
         data = server_data(parsed_results, repository, source)
 
-        puts "    updating server {respository}" if DEV_OUTPUT
+        puts "    updating server" if DEV_OUTPUT
         update_server(data)
 
         # puts "    slack notify {repository}" if DEV_OUTPUT
@@ -166,21 +203,26 @@ module LibraryVersionAnalysis
       dependencies = []
 
       missing_dependency_keys = [] # TODO: handle missing keys
-      results.each do |name, row|
-        libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version, source: row.source})
+      results.each do |real_name, row|
+        name = OBFUSCATE_WORDS ? obfuscate(real_name) : real_name
+
+        libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version})
         unless row.cvss.nil? || row.cvss == "" # rubocop:disable Style/IfUnlessModifier
-          vulns.push({library: name, identifier: row.cvss.split("[")[1].delete("]"), assigned_severity: row.cvss.split("[")[0].strip, url: row.dependabot_permalink})
+          permalink = OBFUSCATE_WORDS ? "https://github.com/advisories" : row.dependabot_permalink
+          identifier = OBFUSCATE_WORDS ? "\"GHSA-XXX\", \"CVE-XXX\"" : row.cvss.split("[")[1].delete("]")
+          vulns.push({library: name, identifier: identifier, assigned_severity: row.cvss.split("[")[0].strip, url: permalink})
         end
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch}) unless row.latest_version.nil?
         if row.dependency_graph.nil?
           missing_dependency_keys.push(name)
         else
-          dependencies.push(row.dependency_graph.deep_to_h)
+          dependency_graph = OBFUSCATE_WORDS ? obfuscate_dependency_graph([row.dependency_graph]).first : row.dependency_graph
+          dependencies.push(dependency_graph.deep_to_h)
         end
       end
 
       {
-        source: source.downcase,
+        source: "#{source.downcase}:#{OBFUSCATE_WORDS}",
         repository: repository,
         libraries: libraries,
         new_versions: new_versions,
@@ -198,6 +240,16 @@ module LibraryVersionAnalysis
       req.body = data.to_json
       res = http.request(req)
       puts "response #{res.code}:#{res.msg}\n#{res.body}"
+    end
+
+    def obfuscate_dependency_graph(dependency_graph)
+      return if dependency_graph.nil?
+
+      dependency_graph.each do |dependency|
+        next if dependency.name.include?(":") # If there is alrady a colon, it is already obfuscated
+        dependency.name = obfuscate(dependency.name)
+        dependency.parents = obfuscate_dependency_graph(dependency.parents)
+      end
     end
 
     def spreadsheet_data(results, source)

@@ -18,7 +18,7 @@ class ValueOnlyHash < Hash
   end
 end
 
-RSpec.describe LibraryVersionAnalysis::Online do
+RSpec.describe LibraryVersionAnalysis::Gemfile do
   let(:libyear_versions) do
     <<~DOC
             packwerk         1.0.3     2018-01-25          1.1.0     2020-11-12      [0, 1, 0]
@@ -59,7 +59,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
   context "with legacy app" do
     subject do
-      analyzer = LibraryVersionAnalysis::Online.new("Test")
+      analyzer = LibraryVersionAnalysis::Gemfile.new("Test")
       allow(analyzer).to receive(:run_libyear).with(/--versions/).and_return(libyear_versions)
       allow(analyzer).to receive(:run_libyear).with(/--libyear/).and_return(libyear_libyear)
       allow(analyzer).to receive(:add_remaining_libraries).and_return(libyear_libyear) # do nothing at this point
@@ -70,7 +70,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
       allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil)
       allow(analyzer).to receive(:add_dependency_graph).and_return(bundle_why) # TODO: Need to upgrade legacy tests
-      analyzer.get_versions
+      analyzer.get_versions("Test")
     end
 
     before(:each) do
@@ -140,7 +140,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
         parsed_results = {"a" => {}, "b" => {}, "c" => {}}
 
-        analyzer = LibraryVersionAnalysis::Online.new("test")
+        analyzer = LibraryVersionAnalysis::Gemfile.new("test")
         result = analyzer.add_dependency_graph(full_spec_set, parsed_results)
 
         expect(result.count).to eq(3)
@@ -166,7 +166,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
 
         parsed_results = {"a" => {}, "b" => {}, "c" => {}, "d" => {}}
 
-        analyzer = LibraryVersionAnalysis::Online.new("test")
+        analyzer = LibraryVersionAnalysis::Gemfile.new("test")
         result = analyzer.add_dependency_graph(full_spec_set, parsed_results)
 
         expect(result.count).to eq(4)

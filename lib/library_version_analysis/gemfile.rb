@@ -1,15 +1,15 @@
 require "library_version_analysis/ownership"
 
 module LibraryVersionAnalysis
-  class Online
+  class Gemfile
     include LibraryVersionAnalysis::Ownership
 
     def initialize(github_repo)
       @github_repo = github_repo
     end
 
-    def get_versions # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      puts("\tOnline running libyear versions") if LibraryVersionAnalysis::DEV_OUTPUT
+    def get_versions(source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      puts("\tGemfile running libyear versions") if LibraryVersionAnalysis::DEV_OUTPUT
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
@@ -17,30 +17,30 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
-      puts("\tOnline parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
-      puts("\tOnline dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
-      add_dependabot_findings(parsed_results, meta_data, @github_repo)
+      puts("\tGemfile dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
+      add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
 
-      puts("\tOnline running libyear libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile running libyear libyear") if LibraryVersionAnalysis::DEV_OUTPUT
       libyear_results = run_libyear("--libyear")
       unless libyear_results.nil? # rubocop:disable Style/IfUnlessModifier
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
       unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        puts("\tOnline adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
+        puts("\tGemfile adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
         add_remaining_libraries(parsed_results)
 
-        puts("\tOnline building dependency graphs") if LibraryVersionAnalysis::DEV_OUTPUT
+        puts("\tGemfile building dependency graphs") if LibraryVersionAnalysis::DEV_OUTPUT
         add_dependency_graph(why_init, parsed_results)
       end
 
-      puts("\tOnline adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
       add_ownerships(parsed_results)
 
-      puts("Online done") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("Gemfile done") if LibraryVersionAnalysis::DEV_OUTPUT
 
       return parsed_results, meta_data
     end
@@ -120,8 +120,7 @@ module LibraryVersionAnalysis
           latest_version_date: scan[4],
           major: scan[5].to_i,
           minor: scan[6].to_i,
-          patch: scan[7].to_i,
-          source: "gemfile"
+          patch: scan[7].to_i
         )
 
         all_versions[scan[0]] = vv
@@ -132,8 +131,8 @@ module LibraryVersionAnalysis
       return all_versions, meta_data
     end
 
-    def add_dependabot_findings(parsed_results, meta_data, github_repo)
-      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, "RUBYGEMS")
+    def add_dependabot_findings(parsed_results, meta_data, github_repo, source)
+      LibraryVersionAnalysis::Github.new.get_dependabot_findings(parsed_results, meta_data, github_repo, source)
     end
 
     def parse_libyear_libyear(results, parsed_results, meta_data) # rubocop:disable Metrics/AbcSize
@@ -220,7 +219,7 @@ module LibraryVersionAnalysis
           parsed_results[name.to_s].owner_reason = "-assigned-in-code-"
           parsed_results[name.to_s].parent = "Rails"
         else
-          parsed_results[name.to_s] = Versionline.new(owner: owner, owner_reason: "-assigned-in-code-", major: 0, minor: 0, patch: 0, source: "gemfile")
+          parsed_results[name.to_s] = Versionline.new(owner: owner, owner_reason: "-assigned-in-code-", major: 0, minor: 0, patch: 0)
         end
       end
     end
@@ -237,8 +236,7 @@ module LibraryVersionAnalysis
 
           vv = Versionline.new(
             owner: :unknown,
-            current_version: scan_result[0][1],
-            source: "gemfile"
+            current_version: scan_result[0][1]
           )
 
           parsed_results[name] = vv

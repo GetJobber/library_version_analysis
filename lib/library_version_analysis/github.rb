@@ -2,13 +2,42 @@ require "graphql/client"
 require "graphql/client/http"
 require "pry-byebug"
 
+
+
+# Add the folowing:
+# 	      state
+#         fixedAt
+#         dependencyScope
+#  like so:
+#       nodes {
+# 	      state
+#         fixedAt
+#         dependencyScope
+#         securityVulnerability {
+#           package {
+#
+# Data looks like:
+#           {
+#             "state": "OPEN",
+#             "fixedAt": null,
+#             "dependencyScope": "DEVELOPMENT",
+#
+# or
+#             "state": "FIXED",
+#             "fixedAt": "2023-06-19T21:05:04Z",
+#             "dependencyScope": "DEVELOPMENT",
+#
+#
+# where state is OPEN, FIXED
+# and dependencyScope is DEVELOPMENT, RUNTIME
+#
 module LibraryVersionAnalysis
   class Github
     URL = "https://api.github.com/graphql".freeze
 
     SOURCES = {
-      "NPM" => "npm",
-      "RUBYGEMS" => "gemfile",
+      "npm": "NPM",
+      "gemfile": "RUBYGEMS"
     }.freeze
 
     HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
@@ -55,8 +84,10 @@ module LibraryVersionAnalysis
         raise "GITHUB_READ_API_TOKEN is not set"
       end
 
+      ecosystem = ecosystem.split(":").first # TODO THIS IS TEMPORARY DELETE ME
+
       github = LibraryVersionAnalysis::Github.new
-      alerts = github.find_alerts(github_name, ecosystem)
+      alerts = github.find_alerts(github_name, SOURCES[ecosystem.to_sym])
 
       meta_data.total_cvss = 0
 
@@ -73,8 +104,7 @@ module LibraryVersionAnalysis
             minor: 0,
             patch: 0,
             age: 0,
-            cvss: cvss,
-            source: alert[:source]
+            cvss: cvss
           )
 
           parsed_results[package] = vv
@@ -144,7 +174,7 @@ module LibraryVersionAnalysis
             severity: alert.security_vulnerability.severity,
             created_at: alert.created_at,
             permalink: alert.security_vulnerability.advisory.permalink,
-            source: SOURCES[ecosystem],
+            source: ecosystem,
           }
         end
       end
