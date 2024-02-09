@@ -14,17 +14,17 @@ module LibraryVersionAnalysis
     :current_version_date,
     :latest_version,
     :latest_version_date,
-    :cvss,
+    :vulnerabilities,
     :major,
     :minor,
     :patch,
     :age,
     # :source,
     :dependency_graph,
-    :dependabot_created_at,
-    :dependabot_permalink,
     keyword_init: true
   )
+
+  Vulnerability = Struct.new(:identifier, :state, :fixed_at, :permalink, :assigned_severity, keyword_init: true)
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
 
@@ -43,7 +43,7 @@ module LibraryVersionAnalysis
 
   LEGACY_DB_SYNC = false
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
-  OBFUSCATE_WORDS = true # This is to ensure we don't store actual spicy data except in secure prod DB
+  OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)
@@ -132,9 +132,7 @@ module LibraryVersionAnalysis
     def go_gemfile(spreadsheet_id, repository, source)
       puts "  gemfile" if DEV_OUTPUT
       gemfile = Gemfile.new(repository)
-      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        source = "ONLINE"
-      end
+      source = "ONLINE" if LibraryVersionAnalysis::CheckVersionStatus.legacy?
 
       meta_data, mode = get_version_summary(gemfile, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
 
@@ -157,9 +155,8 @@ module LibraryVersionAnalysis
     def go_npm(spreadsheet_id, repository, source)
       puts "  npm" if DEV_OUTPUT
       npm = Npm.new(repository)
-      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        source = "MOBILE"
-      end
+      source = "MOBILE" if LibraryVersionAnalysis::CheckVersionStatus.legacy?
+
       meta_data, mode = get_version_summary(npm, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
 
       return meta_data, mode
@@ -207,12 +204,14 @@ module LibraryVersionAnalysis
         name = OBFUSCATE_WORDS ? obfuscate(real_name) : real_name
 
         libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version})
-        unless row.cvss.nil? || row.cvss == "" # rubocop:disable Style/IfUnlessModifier
-          permalink = OBFUSCATE_WORDS ? "https://github.com/advisories" : row.dependabot_permalink
-          identifier = OBFUSCATE_WORDS ? "\"GHSA-XXX\", \"CVE-XXX\"" : row.cvss.split("[")[1].delete("]")
-          vulns.push({library: name, identifier: identifier, assigned_severity: row.cvss.split("[")[0].strip, url: permalink})
+        row.vulnerabilities&.each do |vuln|
+          permalink = OBFUSCATE_WORDS ? "https://github.com/advisories" : vuln.permalink
+          identifier = OBFUSCATE_WORDS ? "\"GHSA-XXX\", \"CVE-XXX\"" : vuln.identifier.join(", ")
+          vulns.push({library: name, identifier: identifier, assigned_severity: vuln.assigned_severity, url: permalink, state: vuln.state, fixed_at: vuln.fixed_at})
         end
+
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch}) unless row.latest_version.nil?
+
         if row.dependency_graph.nil?
           missing_dependency_keys.push(name)
         else
@@ -221,8 +220,9 @@ module LibraryVersionAnalysis
         end
       end
 
+      binding.pry
       {
-        source: "#{source.downcase}:#{OBFUSCATE_WORDS}",
+        source: source.downcase,
         repository: repository,
         libraries: libraries,
         new_versions: new_versions,
@@ -341,7 +341,7 @@ module LibraryVersionAnalysis
       results.each do |hash_line|
         line = hash_line[1]
         if !line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time
-          message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.cvss}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
+          message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.vulnerabilities}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
           SlackNotify.notify(message, "security-alerts")
         end
       end
@@ -353,7 +353,7 @@ module LibraryVersionAnalysis
       return true if line.major.positive?
       return true if line.major.zero? && line.minor > 20
       return true if !line.age.nil? && line.age > 3.0
-      return true unless line.cvss.nil?
+      return true unless line.vulnerabilities.nil?
     end
 
     def build_mode_results(mode_results)

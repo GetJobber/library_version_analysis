@@ -2,42 +2,13 @@ require "graphql/client"
 require "graphql/client/http"
 require "pry-byebug"
 
-
-
-# Add the folowing:
-# 	      state
-#         fixedAt
-#         dependencyScope
-#  like so:
-#       nodes {
-# 	      state
-#         fixedAt
-#         dependencyScope
-#         securityVulnerability {
-#           package {
-#
-# Data looks like:
-#           {
-#             "state": "OPEN",
-#             "fixedAt": null,
-#             "dependencyScope": "DEVELOPMENT",
-#
-# or
-#             "state": "FIXED",
-#             "fixedAt": "2023-06-19T21:05:04Z",
-#             "dependencyScope": "DEVELOPMENT",
-#
-#
-# where state is OPEN, FIXED
-# and dependencyScope is DEVELOPMENT, RUNTIME
-#
 module LibraryVersionAnalysis
   class Github
     URL = "https://api.github.com/graphql".freeze
 
     SOURCES = {
       "npm": "NPM",
-      "gemfile": "RUBYGEMS"
+      "gemfile": "RUBYGEMS",
     }.freeze
 
     HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do
@@ -70,6 +41,9 @@ module LibraryVersionAnalysis
           severity
         }
         number
+        state
+        fixedAt
+        dependencyScope
         createdAt
       }
       pageInfo {
@@ -80,22 +54,110 @@ module LibraryVersionAnalysis
     GRAPHQL
 
     def get_dependabot_findings(parsed_results, meta_data, github_name, ecosystem)
-      if ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
-        raise "GITHUB_READ_API_TOKEN is not set"
-      end
+      raise "GITHUB_READ_API_TOKEN is not set" if ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
 
-      ecosystem = ecosystem.split(":").first # TODO THIS IS TEMPORARY DELETE ME
+      ecosystem = ecosystem.split(":").first # TODO: THIS IS TEMPORARY DELETE ME
 
       github = LibraryVersionAnalysis::Github.new
-      alerts = github.find_alerts(github_name, SOURCES[ecosystem.to_sym])
 
-      meta_data.total_cvss = 0
+      alerts = github.find_alerts(github_name, true, SOURCES[ecosystem.to_sym])
+      meta_data.total_cvss = alerts.count
+      add_alerts_to_parsed_results(parsed_results, alerts)
 
-      alerts.each do |_, alert|
+      get_closed_findings(parsed_results, github_name, ecosystem)
+    end
+
+    def get_closed_findings(parsed_results, github_name, ecosystem)
+      raise "GITHUB_READ_API_TOKEN is not set" if ENV['GITHUB_READ_API_TOKEN'].nil? || ENV['GITHUB_READ_API_TOKEN'].empty?
+
+      ecosystem = ecosystem.split(":").first # TODO: THIS IS TEMPORARY DELETE ME
+
+      github = LibraryVersionAnalysis::Github.new
+      alerts = github.find_alerts(github_name, false, SOURCES[ecosystem.to_sym])
+      add_alerts_to_parsed_results(parsed_results, alerts)
+    end
+
+    def find_alerts(github_name, only_open, ecosystem) # rubocop:disable Metrics/AbcSize
+      schema = GraphQL::Client.load_schema(HTTP_ADAPTER)
+      client = GraphQL::Client.new(schema: schema, execute: HTTP_ADAPTER)
+      client.allow_dynamic_queries = true
+
+      if only_open
+        state_filter = "OPEN"
+        earliest_fixed_at = nil
+      else
+        state_filter = "FIXED"
+        earliest_fixed_at = DateTime.now - 14 # This is not running in rails, so we can't use 14.days.
+      end
+
+      alerts_query = build_alerts_query(client)
+      alerts_query_next = build_alerts_query_next(client)
+
+      response = client.query(alerts_query, variables: { name: github_name, state: state_filter })
+
+      found_alerts = {}
+
+      raise QueryExecutionError, response.errors[:data].join(", ") if response.errors.any?
+
+      end_cursor = add_alerts_working_set(response.data.repository.vulnerability_alerts, found_alerts, earliest_fixed_at, ecosystem)
+      until end_cursor.nil?
+        response = client.query(alerts_query_next, variables: { name: github_name, state: state, cursor: end_cursor })
+        end_cursor = add_alerts_working_set(response.data.repository.vulnerability_alerts, found_alerts, earliest_fixed_at, ecosystem)
+      end
+
+      return found_alerts
+    end
+
+    def add_alerts_working_set(response_alerts, found_alerts, earliest_target_date, target_ecosystem) # rubocop:disable Metrics/AbcSize
+      earliest_fixed_date = nil
+
+      response_alerts.nodes.each do |alert|
+        database_id = alert.security_vulnerability.advisory.database_id
+        ecosystem = alert.security_vulnerability.package.ecosystem
+
+        if ecosystem == target_ecosystem && !found_alerts.has_key?(database_id)
+          found_alerts[database_id] = {
+            package: alert.security_vulnerability.package.name,
+            identifiers: alert.security_vulnerability.advisory.identifiers.map(&:value),
+            severity: alert.security_vulnerability.severity,
+            created_at: alert.created_at,
+            permalink: alert.security_vulnerability.advisory.permalink,
+            source: ecosystem,
+            state: alert.state,
+            fixed_at: alert.fixed_at,
+          }
+
+          unless alert.fixed_at.nil? || earliest_target_date.nil?
+            new_date = DateTime.parse(alert.fixed_at)
+            earliest_fixed_date = new_date if earliest_fixed_date.nil? || new_date < earliest_fixed_date
+          end
+        end
+      end
+
+      end_cursor = response_alerts.page_info.has_next_page ? response_alerts.page_info.end_cursor : nil
+      end_cursor = nil if !earliest_fixed_date.nil? && earliest_fixed_date < earliest_target_date
+
+      return end_cursor
+    end
+
+    def add_alerts_to_parsed_results(parsed_results, alerts) # rubocop:disable Metrics:MethodLength
+      alerts.each do |_, alert| # rubocop:disable Metrics/BlockLength
         package = alert[:package]
-        cvss = "#{alert[:severity]} #{alert[:identifiers]}"
+        identifiers = alert[:identifiers]
+        vulnerability = Vulnerability.new(
+          identifier: identifiers,
+          fixed_at: alert[:fixed_at].nil? ? nil : Time.parse(alert[:fixed_at]),
+          state: alert[:state],
+          permalink: alert[:permalink],
+          assigned_severity: alert[:severity]
+        )
+
         if parsed_results.has_key?(package)
-          parsed_results[package].cvss = cvss
+          if parsed_results[package].vulnerabilities.nil?
+            parsed_results[package].vulnerabilities = [vulnerability]
+          else
+            parsed_results[package].vulnerabilities << vulnerability
+          end
         else
           vv = Versionline.new(
             owner: :unknown,
@@ -104,83 +166,38 @@ module LibraryVersionAnalysis
             minor: 0,
             patch: 0,
             age: 0,
-            cvss: cvss
+            vulnerabilities: [vulnerability]
           )
 
           parsed_results[package] = vv
         end
-
-        parsed_results[package].dependabot_created_at = Time.parse(alert[:created_at])
-        parsed_results[package].dependabot_permalink = alert[:permalink]
-
-        meta_data.total_cvss = meta_data.total_cvss + 1
       end
     end
 
-    def find_alerts(github_name, ecosystem)
-      schema = GraphQL::Client.load_schema(HTTP_ADAPTER)
-      client = GraphQL::Client.new(schema: schema, execute: HTTP_ADAPTER)
-      client.allow_dynamic_queries = true
-
-      @alerts_query = client.parse <<-GRAPHQL
-      query($name: String!) {
+    def build_alerts_query(client)
+      client.parse <<-GRAPHQL
+      query($name: String!, $state: [RepositoryVulnerabilityAlertState!]) {
         repository(name: $name, owner: "GetJobber") {
-          vulnerabilityAlerts(first: 100, states: OPEN) {
-            ...data
-          }
-        }
-      }
-  
-      #{ALERTS_FRAGMENT}
-      GRAPHQL
-
-      @alerts_query_next = client.parse <<-GRAPHQL
-      query($name: String!, $cursor: String!) {
-        repository(name: $name, owner: "GetJobber") {
-          vulnerabilityAlerts(first: 100, states: OPEN, after: $cursor) {
+          vulnerabilityAlerts(first: 100, states: $state) {
             ...data
           }
         }
       }
       #{ALERTS_FRAGMENT}
       GRAPHQL
-
-      response = client.query(@alerts_query, variables: { name: github_name })
-
-      alerts = {}
-
-      if response.errors.any?
-        raise QueryExecutionError, response.errors[:data].join(", ")
-      else
-        end_cursor = add_results(response.data.repository.vulnerability_alerts, alerts, ecosystem)
-        until end_cursor.nil?
-          response = client.query(@alerts_query_next, variables: { name: github_name, cursor: end_cursor })
-          end_cursor = add_results(response.data.repository.vulnerability_alerts, alerts, ecosystem)
-        end
-      end
-
-      return alerts
     end
 
-    def add_results(alerts, results, target_ecosystem)
-      alerts.nodes.each do |alert|
-        database_id = alert.security_vulnerability.advisory.database_id
-        ecosystem = alert.security_vulnerability.package.ecosystem
-
-        if ecosystem == target_ecosystem && !results.has_key?(database_id)
-          results[database_id] = {
-            package: alert.security_vulnerability.package.name,
-            identifiers: alert.security_vulnerability.advisory.identifiers.map(&:value),
-            severity: alert.security_vulnerability.severity,
-            created_at: alert.created_at,
-            permalink: alert.security_vulnerability.advisory.permalink,
-            source: ecosystem,
+    def build_alerts_query_next(client)
+      client.parse <<-GRAPHQL
+      query($name: String!, $state: [RepositoryVulnerabilityAlertState!], $cursor: String!) {
+        repository(name: $name, owner: "GetJobber") {
+          vulnerabilityAlerts(first: 100, states: $state, after: $cursor) {
+            ...data
           }
-        end
-      end
-
-      end_cursor = alerts.page_info.has_next_page ? alerts.page_info.end_cursor : nil
-      return end_cursor
+        }
+      }
+      #{ALERTS_FRAGMENT}
+      GRAPHQL
     end
   end
 end
