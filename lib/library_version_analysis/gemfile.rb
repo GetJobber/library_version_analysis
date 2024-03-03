@@ -53,6 +53,7 @@ module LibraryVersionAnalysis
       end
 
       nodes.each do |key, graph|
+        next unless parsed_results.has_key?(key)
         parsed_results[key]["dependency_graph"] = graph
       end
 
@@ -286,7 +287,10 @@ module LibraryVersionAnalysis
           'Expected %s to match exactly 1 spec, got %d',
           gem_name, specs.length
         )
+
+        return nil
       end
+
       specs.first
     end
 
@@ -311,6 +315,7 @@ module LibraryVersionAnalysis
         end
 
         child_spec = find_one_spec_in_set(spec_set, dep.name)
+        next if child_spec.nil?
         nodes = build_dependency_graph(child_spec, nodes, spec_set)
       end
 

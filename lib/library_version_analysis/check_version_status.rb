@@ -1,9 +1,7 @@
 require "googleauth"
 require "google/apis/sheets_v4"
-require "open3"
-require "uri"
-require "net/https"
 require "pry-byebug"
+require "library_version_analysis/library_tracking"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -43,7 +41,7 @@ module LibraryVersionAnalysis
 
   LEGACY_DB_SYNC = false
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
-  OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
+  OBFUSCATE_WORDS = true # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)
@@ -73,7 +71,8 @@ module LibraryVersionAnalysis
 
     def obfuscate(data)
       idx = data.sum % @word_list_length
-      return "#{data}:#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
+      # return "#{data}:#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
+      return ":#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
     end
 
     def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
@@ -179,7 +178,7 @@ module LibraryVersionAnalysis
         data = server_data(parsed_results, repository, source)
 
         puts "    updating server" if DEV_OUTPUT
-        update_server(data)
+        LibraryTracking.upload(data.to_json)
 
         # puts "    slack notify {repository}" if DEV_OUTPUT
         # notify(parsed_results)
@@ -220,7 +219,6 @@ module LibraryVersionAnalysis
         end
       end
 
-      binding.pry
       {
         source: source.downcase,
         repository: repository,
@@ -231,16 +229,16 @@ module LibraryVersionAnalysis
       }
     end
 
-    def update_server(data)
-      uri = URI(ENV["LIBRARY_UPLOAD_URL"])
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.read_timeout = 300
-      req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
-      req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
-      req.body = data.to_json
-      res = http.request(req)
-      puts "response #{res.code}:#{res.msg}\n#{res.body}"
-    end
+    # def update_server(data)
+    #   uri = URI(ENV["LIBRARY_UPLOAD_URL"])
+    #   http = Net::HTTP.new(uri.host, uri.port)
+    #   http.read_timeout = 300
+    #   req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
+    #   req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
+    #   req.body = data.to_json
+    #   res = http.request(req)
+    #   puts "response #{res.code}:#{res.msg}\n#{res.body}"
+    # end
 
     def obfuscate_dependency_graph(dependency_graph)
       return if dependency_graph.nil?
