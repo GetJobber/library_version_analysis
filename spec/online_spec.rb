@@ -47,7 +47,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       allow(analyzer).to receive(:read_file).and_return(gemfile)
       allow(Open3).to receive(:capture3).and_return(["", "", Status.new(1)])
       allow(Open3).to receive(:capture3).with(/bundle why transitivebox/).and_return([bundle_why, "", Status.new(0)])
-      analyzer.get_versions(nil)
+      analyzer.get_versions
     end
 
     it "should get expected data for owned gem" do
@@ -63,7 +63,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       )
     end
 
-    it "should returns expected data for special case gem" do
+    it "should return expected data for special case gem" do
       do_compare(
         result: subject[0]["actioncable"],
         owner: ":api_platform",
@@ -76,7 +76,7 @@ RSpec.describe LibraryVersionAnalysis::Online do
       )
     end
 
-    it "should returns expected data for transitive" do
+    it "should return expected data for transitive" do
       do_compare(
         result: subject[0]["transitivebox"],
         owner: ":self_serve",
