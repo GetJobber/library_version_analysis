@@ -20,8 +20,8 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'google-api-client'
   spec.add_dependency "googleauth"
-  spec.add_dependency "graphql", "~> 2"
-  spec.add_dependency "graphql-client", "~> 0.2"
+  spec.add_dependency "graphql", "~> 2.0.24"
+  spec.add_dependency "graphql-client", "~> 0.20"
   spec.add_dependency "libyear-bundler"
   spec.add_dependency "open3"
   spec.add_dependency "pry", "~> 0.14.2"
