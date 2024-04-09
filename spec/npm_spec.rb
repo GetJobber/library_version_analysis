@@ -89,7 +89,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       )
     end
 
-    it "should returns expected data for transitive" do
+    it "should return expected data for transitive" do
       do_compare(
         result: subject[0]["@babel/polyfill"],
         owner: ":api_platform",
