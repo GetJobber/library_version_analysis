@@ -61,12 +61,12 @@ RSpec.describe LibraryVersionAnalysis::Npm do
 
   context "when mobile" do
     subject do
-      analyzer = LibraryVersionAnalysis::Npm.new
-      allow(analyzer).to receive(:read_file).with("./libyear_report.txt", true).and_return(npxfile)
-      allow(analyzer).to receive(:read_file).with("./package.json", false).and_return(packagefile)
+      analyzer = LibraryVersionAnalysis::Npm.new("Jobber-mobile")
+      allow(analyzer).to receive(:read_file).with("libyear_report.txt", true).and_return(npxfile)
+      allow(analyzer).to receive(:read_file).with("package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
 
-      analyzer.get_versions(".")
+      analyzer.get_versions
     end
 
     it "should get expected data for owned gem" do
@@ -82,7 +82,7 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       )
     end
 
-    it "should returns expected data for transitive" do
+    it "should return expected data for transitive" do
       do_compare(
         result: subject[0]["@babel/polyfill"],
         owner: ":api_platform",
