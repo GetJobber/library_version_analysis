@@ -34,3 +34,6 @@
 
 1.4.6
     Updated GQL library requirements.
+
+1.4.7
+    Removed graphql dependency.
