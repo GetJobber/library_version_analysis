@@ -28,6 +28,27 @@ TODO: Write usage instructions here
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
 
+## API Tokens
+### Github
+Used to read dependabot alerts
+
+To create the github token:
+1) Under you profile, go to settings
+2) Now on the right side, click on Developer settings (near the bottom)
+3) Click on Personal access tokens -> Tokens (classic)
+4) Create a new classic token, selecting the (repo (all), read:package and read:project) scopes
+
+### Upload Key
+The key used by LibraryTracking. See that project for the correct value.
+
+### Google keys
+deprecated
+
+### Version Status spreadsheet
+deprecated
+
+### Slack token
+deprecated
 
 ## Jobber Dev
 Update the gemfile to read:
