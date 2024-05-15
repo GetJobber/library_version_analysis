@@ -47,8 +47,8 @@ RSpec.describe LibraryVersionAnalysis::Npm do
   context "with legacy app" do
     subject do
       analyzer = LibraryVersionAnalysis::Npm.new("test")
-      allow(analyzer).to receive(:read_file).with("libyear_report.txt", true).and_return(npxfile)
-      allow(analyzer).to receive(:read_file).with("package.json", false).and_return(packagefile)
+      allow(analyzer).to receive(:read_gemfile).with("libyear_report.txt", true).and_return(npxfile)
+      allow(analyzer).to receive(:read_gemfile).with("package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
       allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
       allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil)
@@ -358,8 +358,8 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     describe "#add_ownerships" do
       subject do
         analyzer = LibraryVersionAnalysis::Npm.new("test")
-        allow(analyzer).to receive(:read_file).with("libyear_report.txt", true).and_return(npx_file)
-        allow(analyzer).to receive(:read_file).with("package.json", false).and_return(package_file)
+        allow(analyzer).to receive(:read_gemfile).with("libyear_report.txt", true).and_return(npx_file)
+        allow(analyzer).to receive(:read_gemfile).with("package.json", false).and_return(package_file)
         allow(analyzer).to receive(:run_npm_list).and_return(npm_list)
         allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
 

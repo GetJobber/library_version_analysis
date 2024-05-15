@@ -101,7 +101,7 @@ module LibraryVersionAnalysis
 
       end_cursor = add_alerts_working_set(response.data.repository.vulnerability_alerts, found_alerts, earliest_fixed_at, ecosystem)
       until end_cursor.nil?
-        response = client.query(alerts_query_next, variables: { name: github_name, state: state, cursor: end_cursor })
+        response = client.query(alerts_query_next, variables: { name: github_name, state: state_filter, cursor: end_cursor })
         end_cursor = add_alerts_working_set(response.data.repository.vulnerability_alerts, found_alerts, earliest_fixed_at, ecosystem)
       end
 

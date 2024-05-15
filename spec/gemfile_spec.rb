@@ -63,7 +63,7 @@ RSpec.describe LibraryVersionAnalysis::Gemfile do
       allow(analyzer).to receive(:run_libyear).with(/--versions/).and_return(libyear_versions)
       allow(analyzer).to receive(:run_libyear).with(/--libyear/).and_return(libyear_libyear)
       allow(analyzer).to receive(:add_remaining_libraries).and_return(libyear_libyear) # do nothing at this point
-      allow(analyzer).to receive(:read_file).and_return(gemfile)
+      allow(analyzer).to receive(:read_gemfile).and_return(gemfile)
       allow(Open3).to receive(:capture3).and_return(["", "", Status.new(1)])
       allow(analyzer).to receive(:why_init).and_return(nil)
       allow(analyzer).to receive(:why).and_return(bundle_why)

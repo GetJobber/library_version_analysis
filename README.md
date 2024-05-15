@@ -28,6 +28,11 @@ TODO: Write usage instructions here
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
 
+## Updating Version Tag
+TODO when I next update, but...
+
+Also remember to update (maybe, we don't know why yet) the bundle_cache_key in circle-ci as per this PR: https://github.com/GetJobber/Jobber/pull/40468/files
+
 ## API Tokens
 ### Github
 Used to read dependabot alerts

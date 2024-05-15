@@ -41,7 +41,7 @@ module LibraryVersionAnalysis
 
   LEGACY_DB_SYNC = false
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
-  OBFUSCATE_WORDS = true # This is to ensure we don't store actual spicy data except in secure prod DB
+  OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)

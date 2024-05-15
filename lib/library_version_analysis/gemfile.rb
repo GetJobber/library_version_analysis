@@ -1,4 +1,5 @@
 require "library_version_analysis/ownership"
+require "code_ownership"
 
 module LibraryVersionAnalysis
   class Gemfile
@@ -86,7 +87,7 @@ module LibraryVersionAnalysis
     end
 
     def parse_libyear_versions(results) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      all_versions = {}
+      outdated_versions = {}
       meta_data = MetaData.new
 
       results.each_line do |line| # rubocop:disable Metrics/BlockLength
@@ -124,12 +125,12 @@ module LibraryVersionAnalysis
           patch: scan[7].to_i
         )
 
-        all_versions[scan[0]] = vv
+        outdated_versions[scan[0]] = vv
       end
 
-      meta_data.total_releases = all_versions.count
+      meta_data.total_releases = outdated_versions.count
 
-      return all_versions, meta_data
+      return outdated_versions, meta_data
     end
 
     def add_dependabot_findings(parsed_results, meta_data, github_repo, source)
@@ -159,12 +160,13 @@ module LibraryVersionAnalysis
 
     def add_ownerships(parsed_results)
       add_ownership_from_gemfile(parsed_results)
+      add_ownership_from_gemspecs(parsed_results)
       add_special_case_ownerships(parsed_results)
       add_transitive_ownerships(parsed_results)
     end
 
     def add_ownership_from_gemfile(parsed_results)
-      data = read_file
+      data = read_gemfile
 
       data.each_line do |line|
         scan_result = line.scan(/\s*jgem\s*(\S*),\s*"(\S*)"/)
@@ -182,12 +184,29 @@ module LibraryVersionAnalysis
       end
     end
 
-    def read_file
+    def read_gemfile
       file = File.open("./Gemfile")
       data = file.read
       file.close
 
       return data
+    end
+
+    def add_ownership_from_gemspecs(parsed_results)
+      dependencies = {}
+      Dir.glob(File.join("gems", "**", "*.gemspec")) do |gemspec_file|
+        File.foreach(gemspec_file) do |line|
+          scan_result = line.scan(/spec.add_.*dependency\s*"(\S*)"/)
+
+          next if scan_result.nil? || scan_result.empty?
+
+          library = scan_result[0][0]
+          next if(parsed_results.has_key?(library) && parsed_results[library].owner != :unknown)
+
+          team = CodeOwnership.for_file(gemspec_file)
+          parsed_results[library].owner = team.raw_hash["group"]
+        end
+      end
     end
 
     def add_special_case_ownerships(parsed_results)
