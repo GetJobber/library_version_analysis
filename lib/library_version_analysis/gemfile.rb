@@ -247,19 +247,24 @@ module LibraryVersionAnalysis
     def add_remaining_libraries(parsed_results)
       results = Bundler.load.specs.sort.map(&:full_name)
       results.each do |line|
-        scan_result = line.scan(/(.*)-(.*)/)
+        scan_result = line.scan(/(\D*)-([.0-9]*).*/) # anything that isn't a digit, hyphen, digits, then anything
 
         unless scan_result.nil? || scan_result.empty?
           name = scan_result[0][0]
 
-          next if parsed_results.has_key?(name)
+          library = parsed_results[name]
+          if library.nil?
+            vv = Versionline.new(
+              owner: :unknown,
+              current_version: scan_result[0][1]
+            )
 
-          vv = Versionline.new(
-            owner: :unknown,
-            current_version: scan_result[0][1]
-          )
-
-          parsed_results[name] = vv
+            parsed_results[name] = vv
+          else
+            if library.current_version == "?"
+              library.current_version = scan_result[0][1]
+            end
+          end
         end
       end
     end
