@@ -183,7 +183,7 @@ module LibraryVersionAnalysis
       else
         data = server_data(parsed_results, repository, source)
 
-        puts "    updating server" if DEV_OUTPUT
+        puts "    updating server 1" if DEV_OUTPUT
         LibraryTracking.upload(data.to_json)
 
         # puts "    slack notify {repository}" if DEV_OUTPUT
