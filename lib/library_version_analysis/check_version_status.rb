@@ -45,6 +45,12 @@ module LibraryVersionAnalysis
 
   class CheckVersionStatus
     def self.run(spreadsheet_id:, repository:, source:)
+      # check for env vars before we do anything
+      keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
+      missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
+
+      raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
+
       c = CheckVersionStatus.new
       if legacy?
         mode_results = c.go_legacy(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
@@ -182,6 +188,7 @@ module LibraryVersionAnalysis
 
         # puts "    slack notify {repository}" if DEV_OUTPUT
         # notify(parsed_results)
+        puts "All Done!" if DEV_OUTPUT
       end
 
       return meta_data, mode
