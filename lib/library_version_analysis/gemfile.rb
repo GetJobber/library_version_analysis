@@ -30,13 +30,11 @@ module LibraryVersionAnalysis
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
-      unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        puts("\tGemfile adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
-        add_remaining_libraries(parsed_results)
+      puts("\tGemfile adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
+      add_remaining_libraries(parsed_results)
 
-        puts("\tGemfile building dependency graphs") if LibraryVersionAnalysis::DEV_OUTPUT
-        add_dependency_graph(why_init, parsed_results)
-      end
+      puts("\tGemfile building dependency graphs") if LibraryVersionAnalysis::DEV_OUTPUT
+      add_dependency_graph(why_init, parsed_results)
 
       puts("\tGemfile adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
       add_ownerships(parsed_results)

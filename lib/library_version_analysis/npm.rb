@@ -10,10 +10,8 @@ module LibraryVersionAnalysis
 
     def get_versions(source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_libraries = {}
-      unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
-        all_libraries = add_all_libraries
-      end
+      puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
+      all_libraries = add_all_libraries
 
       puts("\tNPM running libyear") if LibraryVersionAnalysis::DEV_OUTPUT
 
@@ -29,13 +27,11 @@ module LibraryVersionAnalysis
       puts("\tNPM dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
 
-      unless LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
-        add_dependency_graph(parsed_results)
+      puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
+      add_dependency_graph(parsed_results)
 
-        puts("\tNPM breaking cycles") if LibraryVersionAnalysis::DEV_OUTPUT
-        break_cycles(parsed_results)
-      end
+      puts("\tNPM breaking cycles") if LibraryVersionAnalysis::DEV_OUTPUT
+      break_cycles(parsed_results)
 
       puts("\tNPM adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
       add_ownerships(parsed_results)
@@ -205,29 +201,7 @@ module LibraryVersionAnalysis
       add_package_json_ownerships(parsed_results)
 
       # 2nd pass for transitive ownership
-      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        add_transitive_ownerships_legacy(parsed_results)
-      else
-        add_transitive_ownerships(parsed_results)
-      end
-    end
-
-    def add_transitive_ownerships_legacy(parsed_results)
-      transitive_mappings = build_transitive_mapping(parsed_results)
-
-      parsed_results.select { |_, result_data| result_data.owner == :unknown }.each do |name, line_data|
-        parent = transitive_mappings[name]
-
-        next if parent.nil?
-
-        if parsed_results[parent].owner == :unknown
-          line_data.owner = :transitive_unspecified # note, this order is important, line_data and parsed_result[parent] could be the same thing
-          parsed_results[parent].owner = :unspecified # in which case, we want :unspecified
-        else
-          line_data.owner = parsed_results[parent].owner
-          line_data.parent = parent
-        end
-      end
+      add_transitive_ownerships(parsed_results)
     end
 
     def calculate_version(current_version, new_version)
@@ -373,11 +347,7 @@ module LibraryVersionAnalysis
     end
 
     def run_npm_list
-      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        cmd = "npm list --silent"
-      else
-        cmd = "npm list --all --json --silent"
-      end
+      cmd = "npm list --all --json --silent"
       results, _, status = Open3.capture3(cmd)
 
       if status.exitstatus != 0
