@@ -27,6 +27,7 @@ TODO: Write usage instructions here
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+To use in development version of this code to analyze Jobber, replace the gem definition with  jgem :enablers, "library_version_analysis", path: "/Users/johnz/workspace/library_version_analysis"
 
 
 ## Jobber Dev
