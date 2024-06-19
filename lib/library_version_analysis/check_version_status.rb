@@ -205,6 +205,13 @@ module LibraryVersionAnalysis
       data << ["Updated: #{Time.now.utc}"]
 
       results.each do |name, row|
+        vuln = row.vulnerabilities.nil? ? nil:row.vulnerabilities.select { |v| v.state != "FIXED" }.first
+        if vuln.nil?
+          cvss = nil
+        else
+          cvss = "#{vuln.assigned_severity}#{vuln.identifier}"
+        end
+
         data << [
           name,
           row.owner,
@@ -218,7 +225,7 @@ module LibraryVersionAnalysis
           row.minor,
           row.patch,
           row.age,
-          row.cvss,
+          cvss,
           '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
           '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
           '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
