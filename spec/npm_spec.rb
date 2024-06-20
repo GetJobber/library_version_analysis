@@ -33,23 +33,8 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       }
     DOC
   end
-  let(:npmlist) do
-    <<~DOC
-      jobber-mobile@4.73.0 /Users/johnz/source/jobber-mobile
-      ├─┬ @apollo/client@3.3.16
-      │ ├── @graphql-typed-document-node/core@3.1.0
-      │ ├── @types/zen-observable@0.8.0
-      │ ├─┬ @wry/context@0.6.0
-      │ │ └── @babel/polyfill@2.2.0
-      ├─┬ @cubejs-client/core@0.4.0
-      │ │ └── @flatfile/adapter@2.2.0
-      │ ├── fast-json-stable-stringify@2.1.0
-      │ ├─┬ graphql-tag@2.12.4
-      │ │ └── tslib@2.2.0
-    DOC
-  end
 
-  def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:)
+  def do_compare(result:, owner:, current_version:, latest_version:, major:, minor:, patch:, age:) # rubocop:disable Metrics/AbcSize, Metrics/ParameterLists
     expect(result[:owner]).to eq(owner)
     expect(result[:current_version]).to eq(current_version)
     expect(result[:latest_version]).to eq(latest_version)
@@ -59,14 +44,36 @@ RSpec.describe LibraryVersionAnalysis::Npm do
     expect(result[:age]).to eq(age)
   end
 
-  context "when mobile" do
+  context "with legacy app" do
     subject do
-      analyzer = LibraryVersionAnalysis::Npm.new("Jobber-mobile")
-      allow(analyzer).to receive(:read_file).with("libyear_report.txt", true).and_return(npxfile)
-      allow(analyzer).to receive(:read_file).with("package.json", false).and_return(packagefile)
+      analyzer = LibraryVersionAnalysis::Npm.new("test")
+      allow(analyzer).to receive(:read_gemfile).with("libyear_report.txt", true).and_return(npxfile)
+      allow(analyzer).to receive(:read_gemfile).with("package.json", false).and_return(packagefile)
       allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
+      allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
+      allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil)
 
-      analyzer.get_versions
+      analyzer.get_versions("test")
+    end
+
+    let(:npmlist) do
+      <<~DOC
+        jobber-mobile@4.73.0 /Users/johnz/source/jobber-mobile
+        ├─┬ @apollo/client@3.3.16
+        │ ├── @graphql-typed-document-node/core@3.1.0
+        │ ├── @types/zen-observable@0.8.0
+        │ ├─┬ @wry/context@0.6.0
+        │ │ └── @babel/polyfill@2.2.0
+        ├─┬ @cubejs-client/core@0.4.0
+        │ │ └── @flatfile/adapter@2.2.0
+        │ ├── fast-json-stable-stringify@2.1.0
+        │ ├─┬ graphql-tag@2.12.4
+        │ │ └── tslib@2.2.0
+      DOC
+    end
+
+    before(:each) do
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(true)
     end
 
     it "should get expected data for owned gem" do
@@ -101,6 +108,297 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       expect(subject[1].total_major).to eq(13)
       expect(subject[1].total_minor).to eq(98)
       expect(subject[1].total_patch).to eq(147)
+    end
+  end
+
+  context "with new app" do
+    let(:npx_file) do
+      <<~DOC
+        [
+          {"dependency": "jobber","drift":0.8213552361396304,"pulse":0.02737850787132101,"releases":34,"major":0,"minor":2,"patch":32,"available":"3.5.10"},
+          {"dependency":"a","drift":1.8179329226557153,"pulse":1.3880903490759753,"releases":12,"major":0,"minor":50,"patch":5,"available":"7.12.1"},
+          {"dependency":"b","drift":0.9965776865160849,"pulse":0.6078028747433265,"releases":7,"major":1,"minor":1,"patch":5,"available":"2.1.1"},
+          {"dependency":"c","drift":1.2019164955509924,"pulse":0.008213552361396304,"releases":58,"major":0,"minor":5,"patch":53,"available":"0.29.29"},
+          {"dependency":"d","drift":0.9609856262833676,"pulse":0.2600958247775496,"releases":26,"major":2,"minor":7,"patch":19,"available":"2.9.6"}
+        ]
+      DOC
+    end
+
+    let(:npm_list) do
+      results = <<~EOR
+        {
+          "version": "1.0.0",
+          "name": "jobber",
+          "problems": [
+            "invalid: stylelint@14.16.1 /Users/johnz/source/Jobber/node_modules/stylelint"
+          ],
+          "dependencies": {
+            "a": {
+              "version": "1.1.35",
+              "resolved": "https://registry.npmjs.org/@googlemaps/react-wrapper/-/react-wrapper-1.1.35.tgz",
+              "overridden": false,
+              "dependencies": {
+                "b": {
+                  "version": "1.16.2",
+                  "resolved": "https://registry.npmjs.org/@googlemaps/js-api-loader/-/js-api-loader-1.16.2.tgz",
+                  "overridden": false,
+                  "dependencies": {
+                    "c": {
+                      "version": "3.1.3"
+                    },
+                    "d": {
+                      "version": "3.1.3"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      EOR
+
+      return results
+    end
+
+    before(:each) do
+      allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(false)
+    end
+
+    let(:npm_cycle) do
+      results = <<~EOR
+        {
+          "version": "1.0.0",
+          "name": "jobber",
+          "dependencies": {
+            "a": {
+              "version": "1.1.35"
+             },
+            "browserslist": {
+              "version": "4.21.5",
+              "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.21.5.tgz",
+              "overridden": false,
+              "dependencies": {
+                "node-releases": {
+                  "version": "2.0.10",
+                  "resolved": "https://registry.npmjs.org/node-releases/-/node-releases-2.0.10.tgz",
+                  "overridden": false
+                },
+                "update-browserslist-db": {
+                  "version": "1.0.10",
+                  "resolved": "https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.0.10.tgz",
+                  "overridden": false,
+                  "dependencies": {
+                    "browserslist": {
+                      "version": "4.21.5"
+                    },
+                    "escalade": {
+                      "version": "3.1.1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      EOR
+
+      return results
+    end
+
+    describe "#add_dependency_graph" do
+      let(:npm_short_list) do
+        results = <<~EOR
+          {
+            "version": "1.0.0",
+            "name": "jobber",
+            "problems": [
+              "invalid: stylelint@14.16.1 /Users/johnz/source/Jobber/node_modules/stylelint"
+            ],
+            "dependencies": {
+              "a": {
+                "version": "1.1.35",
+                "resolved": "https://registry.npmjs.org/@googlemaps/react-wrapper/-/react-wrapper-1.1.35.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "b": {
+                    "version": "1.16.2",
+                    "dependencies": {
+                      "c": {
+                        "version": "1.16.2"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        EOR
+        return results
+      end
+
+      let(:npm_multi_parent) do
+        results = <<~EOR
+          {
+            "version": "1.0.0",
+            "name": "jobber",
+            "dependencies": {
+              "a": {
+                "version": "1.1.35",
+                "dependencies": {
+                  "b": {
+                    "version": "1.16.2"
+                  }
+                }
+              },
+              "c": {
+                "version": "1.1.36",
+                "dependencies": {
+                  "b": {
+                    "version": "1.16.2"
+                  }
+                }
+              }
+
+            }
+          }
+        EOR
+
+        return results
+      end
+
+      it "should reverse simple chain" do
+        parsed_results = {"a" => {}, "b" => {}, "c" => {}}
+
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_short_list)
+
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        expect(result.count).to eq(3)
+        c = result["c"]
+        expect(c.parents[0].name).to eq("b")
+        b = result["c"].parents[0]
+        expect(b.parents[0].name).to eq("a")
+        a = result["c"].parents[0].parents[0]
+        expect(a.parents).to be_nil
+      end
+
+      it "should handle multiple parents" do
+        parsed_results = {"a" => {}, "b" => {}, "c" => {}}
+
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_multi_parent)
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        b = result["b"]
+        expect(b.parents.count).to eq(2)
+      end
+
+      it "should handle two leaf tree" do
+        parsed_results = {"a" => {}, "b" => {}, "c" => {}, "d" => {}}
+
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_list)
+        result = analyzer.add_dependency_graph(parsed_results)
+
+        expect(result.count).to eq(4)
+        d = result["d"]
+        expect(d.parents[0].name).to eq("b")
+        c = result["c"]
+        expect(c.parents[0].name).to eq("b")
+        b = result["c"].parents[0]
+        expect(b.parents[0].name).to eq("a")
+        a = result["c"].parents[0].parents[0]
+        expect(a.parents).to be_nil
+      end
+    end
+
+    describe "#break_cycles" do
+      it "should nil out parents of library with cycle" do
+        parsed_results = {"a" => {}, "browserslist" => {}, "node-releases" => {}, "update-browserslist-db" => {}, "escalade" => {}}
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_cycle)
+
+        analyzer.add_dependency_graph(parsed_results)
+        expect(parsed_results["browserslist"]["dependency_graph"].parents.find { |x| x.name == "update-browserslist-db" }.parents.length).to eq(1)
+
+        analyzer.send(:break_cycles, parsed_results)
+        expect(parsed_results["browserslist"]["dependency_graph"].parents.find { |x| x.name == "update-browserslist-db" }.parents.length).to eq(0)
+      end
+    end
+
+    describe "#calculate_version" do
+      let(:analyzer) { LibraryVersionAnalysis::Npm.new("test") }
+
+      it("should return simple version if both match") do
+        expect(analyzer.send(:calculate_version, "1.2.3", "1.2.3")).to eq("1.2.3")
+      end
+
+      it("should return correct order if new is greater than simple old") do
+        expect(analyzer.send(:calculate_version, "1.2.3", "2.1.3")).to eq("1.2.3..2.1.3")
+      end
+
+      it("should return correct order if new is less than simple old") do
+        expect(analyzer.send(:calculate_version, "2.1.4", "2.1.3")).to eq("2.1.3..2.1.4")
+      end
+
+      it("should replace left if new is less than left") do
+        expect(analyzer.send(:calculate_version, "1.2.4..2.1.3", "1.2.3")).to eq("1.2.3..2.1.3")
+      end
+
+      it("should replace right if new is greater than right") do
+        expect(analyzer.send(:calculate_version, "1.2.3..2.1.3", "2.2.3")).to eq("1.2.3..2.2.3")
+      end
+
+      it("should make no change if new is between left and right") do
+        expect(analyzer.send(:calculate_version, "1.2.3..2.1.3", "1.3.3")).to eq("1.2.3..2.1.3")
+      end
+    end
+
+    describe "#add_ownerships" do
+      subject do
+        analyzer = LibraryVersionAnalysis::Npm.new("test")
+        allow(analyzer).to receive(:read_gemfile).with("libyear_report.txt", true).and_return(npx_file)
+        allow(analyzer).to receive(:read_gemfile).with("package.json", false).and_return(package_file)
+        allow(analyzer).to receive(:run_npm_list).and_return(npm_list)
+        allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
+
+        analyzer.get_versions("test")
+      end
+
+      let(:package_file) do
+        <<~DOC
+          {
+            "ownerships": {
+              "a": ":api_platform"
+            }
+          }
+        DOC
+      end
+
+      it "should add an assigned owner" do
+        expect(subject[0]["a"].owner).to eq(":api_platform")
+      end
+
+      it "should add an assigned owner reason" do
+        expect(subject[0]["a"].owner_reason).to eq(LibraryVersionAnalysis::Ownership::OWNER_REASON_ASSIGNED)
+      end
+
+      it "should add a parent owner" do
+        expect(subject[0]["b"].owner).to eq(":api_platform")
+      end
+
+      it "should add a parent owner reason" do
+        expect(subject[0]["b"].owner_reason).to eq("a")
+      end
+
+      it "should add a third-party owner" do
+        expect(subject[0]["c"].owner).to eq(":api_platform")
+      end
+
+      it "should add a thrid-party owner reason" do
+        expect(subject[0]["c"].owner_reason).to eq("a")
+      end
     end
   end
 end
