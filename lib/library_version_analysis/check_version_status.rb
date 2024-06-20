@@ -39,11 +39,13 @@ module LibraryVersionAnalysis
     end
   end
 
-  LEGACY_DB_SYNC = false
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
   OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
+  UPDATE_SERVER = false # These two are temporary as I update the code to support both paths
+  UPDATE_SPREADSHEET = true
 
   class CheckVersionStatus
+    # todo joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
     def self.run(spreadsheet_id:, repository:, source:)
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
@@ -52,11 +54,7 @@ module LibraryVersionAnalysis
       raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
 
       c = CheckVersionStatus.new
-      if legacy?
-        mode_results = c.go_legacy(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
-      else
-        mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
-      end
+      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 
       return c.build_mode_results(mode_results)
     end
@@ -71,10 +69,6 @@ module LibraryVersionAnalysis
       end
     end
 
-    def self.legacy?
-      LEGACY_DB_SYNC
-    end
-
     def obfuscate(data)
       idx = data.sum % @word_list_length
       # return "#{data}:#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
@@ -87,14 +81,14 @@ module LibraryVersionAnalysis
       case source
       when "npm"
         meta_data, mode = go_npm(spreadsheet_id, repository, source)
-        print_summary("mobile", meta_data, mode) if DEV_OUTPUT
       when "gemfile"
         meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
-        print_summary("gemfile", meta_data, mode) if DEV_OUTPUT
       else
         puts "Don't recognize source #{source}"
         exit(-1)
       end
+
+      print_summary(source, meta_data, mode) if DEV_OUTPUT
 
       puts "Done" if DEV_OUTPUT
 
@@ -103,64 +97,18 @@ module LibraryVersionAnalysis
       }
     end
 
-    def go_legacy(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      puts "Check Version" if DEV_OUTPUT
-
-      # TODO: This will change a bit later.
-      if repository == "jobber-mobile"
-        online = false
-        online_node = false
-        mobile = true
-      else
-        online = true
-        online_node = true
-        mobile = false
-      end
-
-      meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id, repository) if online_node
-      meta_data_online, mode_online = go_gemfile(spreadsheet_id, repository, nil) if online
-      meta_data_mobile, mode_mobile = go_npm(spreadsheet_id, repository, nil) if mobile
-
-      print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
-      print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
-      print_summary("mobile", meta_data_mobile, mode_mobile) if mobile && DEV_OUTPUT
-
-      puts "Done" if DEV_OUTPUT
-
-      return {
-        online: mode_online,
-        online_node: mode_online_node,
-        mobile: mode_mobile,
-      }
-    end
-
     def go_gemfile(spreadsheet_id, repository, source)
       puts "  gemfile" if DEV_OUTPUT
       gemfile = Gemfile.new(repository)
-      source = "ONLINE" if LibraryVersionAnalysis::CheckVersionStatus.legacy?
 
       meta_data, mode = get_version_summary(gemfile, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
 
       return meta_data, mode
     end
 
-    # def go_online_node(spreadsheet_id, repository)
-    #   puts "  online node" if DEV_OUTPUT
-    #   mobile_node = Npm.new(repository)
-    #   if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-    #     source = "ONLINE NODE"
-    #   else
-    #     source = "NPM"
-    #   end
-    #   meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, repository, source)
-    #
-    #   return meta_data_online_node, mode_online_node
-    # end
-
     def go_npm(spreadsheet_id, repository, source)
       puts "  npm" if DEV_OUTPUT
       npm = Npm.new(repository)
-      source = "MOBILE" if LibraryVersionAnalysis::CheckVersionStatus.legacy?
 
       meta_data, mode = get_version_summary(npm, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
 
@@ -172,24 +120,19 @@ module LibraryVersionAnalysis
 
       mode = get_mode_summary(parsed_results, meta_data)
 
-      if LibraryVersionAnalysis::CheckVersionStatus.legacy?
-        data = spreadsheet_data(parsed_results, source)
-
+      if UPDATE_SPREADSHEET
         puts "    updating spreadsheet #{source}" if DEV_OUTPUT
+        data = spreadsheet_data(parsed_results, source)
         update_spreadsheet(spreadsheet_id, range, data)
-
-        puts "    slack notify #{source}" if DEV_OUTPUT
-        notify(parsed_results)
-      else
-        data = server_data(parsed_results, repository, source)
-
-        puts "    updating server 1" if DEV_OUTPUT
-        LibraryTracking.upload(data.to_json)
-
-        # puts "    slack notify {repository}" if DEV_OUTPUT
-        # notify(parsed_results)
-        puts "All Done!" if DEV_OUTPUT
       end
+
+      if UPDATE_SERVER
+        puts "    updating server" if DEV_OUTPUT
+        data = server_data(parsed_results, repository, source)
+        LibraryTracking.upload(data.to_json)
+      end
+
+      puts "All Done!" if DEV_OUTPUT
 
       return meta_data, mode
     end
@@ -236,17 +179,6 @@ module LibraryVersionAnalysis
       }
     end
 
-    # def update_server(data)
-    #   uri = URI(ENV["LIBRARY_UPLOAD_URL"])
-    #   http = Net::HTTP.new(uri.host, uri.port)
-    #   http.read_timeout = 300
-    #   req = Net::HTTP::Post.new(uri.path, 'Content-Type' => 'application/json')
-    #   req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
-    #   req.body = data.to_json
-    #   res = http.request(req)
-    #   puts "response #{res.code}:#{res.msg}\n#{res.body}"
-    # end
-
     def obfuscate_dependency_graph(dependency_graph)
       return if dependency_graph.nil?
 
@@ -261,14 +193,30 @@ module LibraryVersionAnalysis
       header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
       data = [header_row]
 
+      case source
+      when "npm"
+        legacy_source= "MOBILE"
+      when "gemfile"
+        legacy_source= "ONLINE"
+      else
+        legacy_source= "UNKNOWN"
+      end
+
       data << ["Updated: #{Time.now.utc}"]
 
       results.each do |name, row|
+        vuln = row.vulnerabilities.nil? ? nil:row.vulnerabilities.select { |v| v.state != "FIXED" }.first
+        if vuln.nil?
+          cvss = nil
+        else
+          cvss = "#{vuln.assigned_severity}#{vuln.identifier}"
+        end
+
         data << [
           name,
           row.owner,
           row.parent,
-          source,
+          legacy_source,
           row.current_version,
           row.current_version_date,
           row.latest_version,
@@ -277,7 +225,7 @@ module LibraryVersionAnalysis
           row.minor,
           row.patch,
           row.age,
-          row.cvss,
+          cvss,
           '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
           '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
           '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
