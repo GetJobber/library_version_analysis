@@ -41,12 +41,18 @@ module LibraryVersionAnalysis
 
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
   OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
-  UPDATE_SERVER = true # These two are temporary as I update the code to support both paths
-  UPDATE_SPREADSHEET = false
 
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
     def self.run(spreadsheet_id:, repository:, source:)
+      if spreadsheet_id.present?
+        @update_server = false
+        @update_spreadsheet = true
+      else
+        @update_server = true
+        @update_spreadsheet = false
+      end
+
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
       missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
@@ -120,13 +126,13 @@ module LibraryVersionAnalysis
 
       mode = get_mode_summary(parsed_results, meta_data)
 
-      if UPDATE_SPREADSHEET
+      if @update_spreadsheet
         puts "    updating spreadsheet #{source}" if DEV_OUTPUT
         data = spreadsheet_data(parsed_results, source)
         update_spreadsheet(spreadsheet_id, range, data)
       end
 
-      if UPDATE_SERVER
+      if @update_server
         puts "    updating server" if DEV_OUTPUT
         data = server_data(parsed_results, repository, source)
         LibraryTracking.upload(data.to_json)
