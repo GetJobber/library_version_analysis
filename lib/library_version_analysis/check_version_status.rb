@@ -45,12 +45,12 @@ module LibraryVersionAnalysis
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
     def self.run(spreadsheet_id:, repository:, source:)
-      if spreadsheet_id.present?
-        @update_server = false
-        @update_spreadsheet = true
-      else
+      if spreadsheet_id.nil? || spreadsheet_id.empty?
         @update_server = true
         @update_spreadsheet = false
+      else
+        @update_server = false
+        @update_spreadsheet = true
       end
 
       # check for env vars before we do anything
