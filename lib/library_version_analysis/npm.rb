@@ -291,7 +291,6 @@ module LibraryVersionAnalysis
 
       if push_unique(node.name).nil?
         puts "\t\tCycle detected: #{node.name}"
-        # binding.pry if node.name == "execa"
         return true
       end
 

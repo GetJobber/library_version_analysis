@@ -41,11 +41,11 @@ module LibraryVersionAnalysis
 
   DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
   OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
-  UPDATE_SERVER = false # These two are temporary as I update the code to support both paths
-  UPDATE_SPREADSHEET = true
+  UPDATE_SERVER = true # These two are temporary as I update the code to support both paths
+  UPDATE_SPREADSHEET = false
 
   class CheckVersionStatus
-    # todo joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
+    # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
     def self.run(spreadsheet_id:, repository:, source:)
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
@@ -295,7 +295,7 @@ module LibraryVersionAnalysis
         line = hash_line[1]
         if !line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time
           message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.vulnerabilities}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
-          SlackNotify.notify(message, "security-alerts")
+          SlackNotify.notify(message)
         end
       end
     end

@@ -15,7 +15,7 @@ module LibraryVersionAnalysis
       def headers(_context)
         {
           "Authorization" => "Bearer #{ENV['GITHUB_READ_API_TOKEN']}",
-          "User-Agent" => "Ruby",
+          "LibUser-Agent" => "Ruby",
         }
       end
     end
