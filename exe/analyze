@@ -2,6 +2,11 @@
 
 require "library_version_analysis"
 
+puts "Got #{ARGV.count} arguments"
+ARGV.each do |arg|
+  puts arg
+end
+
 if ARGV.count == 1
   spreadsheet_id = ARGV[0]
   repository = "jobber-mobile"
@@ -9,14 +14,10 @@ if ARGV.count == 1
 elsif ARGV.count == 2
   # this supports legacy calls
   spreadsheet_id = ""
-  repository = ARGV[1]
-  source = ARGV[2]
+  repository = ARGV[0]
+  source = ARGV[1]
 else
   puts "Usage: analyze <repository> <source> or analyze <spreadsheet_id>"
-  puts "Got #{ARGV.count} arguments"
-  ARGV.each do |arg|
-    puts arg
-  end
 
   Kernel.exit(1)
 end
