@@ -13,6 +13,11 @@ elsif ARGV.count == 2
   source = ARGV[2]
 else
   puts "Usage: analyze <repository> <source> or analyze <spreadsheet_id>"
+  puts "Got #{ARGV.count} arguments"
+  ARGV.each do |arg|
+    puts arg
+  end
+
   Kernel.exit(1)
 end
 
