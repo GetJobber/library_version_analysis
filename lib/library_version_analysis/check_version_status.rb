@@ -45,14 +45,6 @@ module LibraryVersionAnalysis
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
     def self.run(spreadsheet_id:, repository:, source:)
-      if spreadsheet_id.nil? || spreadsheet_id.empty?
-        @update_server = true
-        @update_spreadsheet = false
-      else
-        @update_server = false
-        @update_spreadsheet = true
-      end
-
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
       missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
@@ -83,6 +75,14 @@ module LibraryVersionAnalysis
 
     def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts "Check Version" if DEV_OUTPUT
+
+      if spreadsheet_id.nil? || spreadsheet_id.empty?
+        @update_server = true
+        @update_spreadsheet = false
+      else
+        @update_server = false
+        @update_spreadsheet = true
+      end
 
       case source
       when "npm"
