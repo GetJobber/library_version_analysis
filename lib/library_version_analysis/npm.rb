@@ -227,7 +227,7 @@ module LibraryVersionAnalysis
       package_file = "package.json"
       file = read_file(package_file, false)
       package_data = JSON.parse(file)
-      package_data["ownerships"].each do |name, owner|
+      package_data["ownerships"]&.each do |name, owner|
         if parsed_results.has_key?(name)
           parsed_results[name].owner = owner
           parsed_results[name].owner_reason = LibraryVersionAnalysis::Ownership::OWNER_REASON_ASSIGNED
