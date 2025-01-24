@@ -44,7 +44,7 @@ module LibraryVersionAnalysis
 
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
-    def self.run(spreadsheet_id:, repository:, source:)
+    def self.run(spreadsheet_id: "", repository: "", source: "")
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
       missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
@@ -54,7 +54,22 @@ module LibraryVersionAnalysis
       c = CheckVersionStatus.new
       mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 
-      return c.build_mode_results(mode_results)
+      mode_key = "#{repository}/#{source}"
+
+      # ugly hack for legacy
+      case mode_key
+        when "jobber/npm"
+          result_key = :online_node
+        when "jobber/gemfile"
+          result_key = :online
+        when "jobber/mobile"
+          result_key = :mobile
+        else
+          result_key = mode_key
+      end
+
+      results = {result_key =>  c.mode_results_specific(mode_results, mode_key.to_sym)}
+      return results
     end
 
     def initialize
@@ -74,15 +89,18 @@ module LibraryVersionAnalysis
     end
 
     def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      puts "Check Version" if DEV_OUTPUT
 
       if spreadsheet_id.nil? || spreadsheet_id.empty?
         @update_server = true
         @update_spreadsheet = false
+        variant = "lt"
       else
         @update_server = false
         @update_spreadsheet = true
+        variant = "legacy"
       end
+
+      puts "Check Version #{variant}" if DEV_OUTPUT
 
       case source
       when "npm"
@@ -313,15 +331,6 @@ module LibraryVersionAnalysis
       return true if line.major.zero? && line.minor > 20
       return true if !line.age.nil? && line.age > 3.0
       return true unless line.vulnerabilities.nil?
-    end
-
-    def build_mode_results(mode_results)
-      results = {}
-      results[:online] = mode_results_specific(mode_results, :online) unless mode_results[:online].nil?
-      results[:online_node] = mode_results_specific(mode_results, :online_node) unless mode_results[:online_node].nil?
-      results[:mobile] = mode_results_specific(mode_results, :mobile) unless mode_results[:mobile].nil?
-
-      return results
     end
 
     def mode_results_specific(mode_results, source)

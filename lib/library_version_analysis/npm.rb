@@ -37,6 +37,7 @@ module LibraryVersionAnalysis
       add_ownerships(parsed_results)
 
       puts("NPM done") if LibraryVersionAnalysis::DEV_OUTPUT
+
       return parsed_results, meta_data
     end
 

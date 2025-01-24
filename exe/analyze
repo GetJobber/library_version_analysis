@@ -17,7 +17,7 @@ elsif ARGV.count == 2
   repository = ARGV[0]
   source = ARGV[1]
 else
-  puts "Usage: analyze <repository> <source> or analyze <spreadsheet_id>"
+  puts "Usage: analyze <spreadsheet_id> <repository> <source>"
 
   Kernel.exit(1)
 end

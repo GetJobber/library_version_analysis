@@ -202,7 +202,7 @@ module LibraryVersionAnalysis
           next if(parsed_results.has_key?(library) && parsed_results[library].owner != :unknown)
 
           team = CodeOwnership.for_file(gemspec_file)
-          parsed_results[library].owner = team.raw_hash["group"]
+          parsed_results[library]&.owner = team.raw_hash["group"]
         end
       end
     end
