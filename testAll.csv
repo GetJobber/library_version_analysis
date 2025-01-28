@@ -1,0 +1,11 @@
+#name,owner,current_version
+lib1,cvsOnwer, 1.2.3
+lib2,cvsOwner, 3.2.1
+
+#name,new_version
+lib1, 1.2.4
+
+#library,identifier,assigned_severity,state
+lib2, CVEXXX,CRITICAL,OPEN
+
+

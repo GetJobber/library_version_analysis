@@ -1,93 +1,168 @@
 require "googleauth"
 require "google/apis/sheets_v4"
-require "open3"
 require "pry-byebug"
+require "library_version_analysis/library_tracking"
+require "library_version_analysis/configuration"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
     :owner,
+    :owner_reason,
     :parent,
     :current_version,
     :current_version_date,
     :latest_version,
     :latest_version_date,
-    :cvss,
+    :vulnerabilities,
     :major,
     :minor,
     :patch,
     :age,
-    :dependabot_created_at,
-    :dependabot_permalink,
+    # :source,
+    :dependency_graph,
     keyword_init: true
   )
+
+  Vulnerability = Struct.new(:identifier, :state, :fixed_at, :permalink, :assigned_severity, keyword_init: true)
   MetaData = Struct.new(:total_age, :total_releases, :total_major, :total_minor, :total_patch, :total_cvss)
   ModeSummary = Struct.new(:one_major, :two_major, :three_plus_major, :minor, :patch, :total, :total_lib_years, :total_cvss, :unowned_issues, :one_number)
 
-  DEV_OUTPUT = false # NOTE: Having any ootput other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  LibNode = Struct.new(
+    :name,
+    :parents,
+    keyword_init: true
+  ) do |_|
+    def deep_to_h
+      h = {}
+      h[:name] = name
+      h[:parents] = parents&.map(&:deep_to_h)
+      h
+    end
+  end
+
+  DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
-    def self.run(spreadsheet_id:, online: "true", online_node: "true", mobile: "true")
-      c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id, online == "true", online_node == "true", mobile == "true")
+    # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
+    def self.run(spreadsheet_id: "", repository: "", source: "")
+      # check for env vars before we do anything
+      keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
+      missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
 
-      return c.build_mode_results(mode_results)
+      raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
+
+      c = CheckVersionStatus.new
+      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
+
+      mode_key = "#{repository}/#{source}"
+
+      # ugly hack for legacy
+      case mode_key
+        when "jobber/npm"
+          result_key = :online_node
+        when "jobber/gemfile"
+          result_key = :online
+        when "jobber/mobile"
+          result_key = :mobile
+        else
+          result_key = mode_key
+      end
+
+      results = {result_key =>  c.mode_results_specific(mode_results, mode_key.to_sym)}
+      return results
     end
 
-    def go(spreadsheet_id, online, online_node, mobile)
-      puts "Check Version" if DEV_OUTPUT
+    def initialize
+      LibraryVersionAnalysis::Configuration.configure
 
-      meta_data_online_node, mode_online_node = go_online_node(spreadsheet_id) if online_node
-      meta_data_online, mode_online = go_online(spreadsheet_id) if online
-      meta_data_mobile, mode_mobile = go_mobile(spreadsheet_id) if mobile
+      if OBFUSCATE_WORDS # rubocop:disable Style/GuardClause
+        @word_list = []
 
-      print_summary("online", meta_data_online, mode_online) if online && DEV_OUTPUT
-      print_summary("online_node", meta_data_online_node, mode_online_node) if online_node && DEV_OUTPUT
-      print_summary("mobile", meta_data_mobile, mode_mobile) if mobile && DEV_OUTPUT
+        File.open("/usr/share/dict/words").each { |line| @word_list << line.strip }
+        @word_list.shuffle!(random: Random.new(ENV["WORD_LIST_RANDOM_SEED"].to_i))
+        @word_list_length = @word_list.length
+      end
+    end
+
+    def obfuscate(data)
+      idx = data.sum % @word_list_length
+      # return "#{data}:#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
+      return ":#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
+    end
+
+    def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+
+      if spreadsheet_id.nil? || spreadsheet_id.empty?
+        @update_server = true
+        @update_spreadsheet = false
+        variant = "lt"
+      else
+        @update_server = false
+        @update_spreadsheet = true
+        variant = "legacy"
+      end
+
+      puts "Check Version #{variant}" if DEV_OUTPUT
+
+      case source
+      when "npm"
+        meta_data, mode = go_npm(spreadsheet_id, repository, source)
+      when "gemfile"
+        meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
+      else
+        puts "Don't recognize source #{source}"
+        exit(-1)
+      end
+
+      print_summary(source, meta_data, mode) if DEV_OUTPUT
 
       puts "Done" if DEV_OUTPUT
 
       return {
-        online: mode_online,
-        online_node: mode_online_node,
-        mobile: mode_mobile,
+        "#{repository}/#{source}": mode,
       }
     end
 
-    def go_online(spreadsheet_id)
-      puts "  online" if DEV_OUTPUT
-      online = Online.new
-      meta_data_online, mode_online = get_version_summary(online, "OnlineVersionData!A:Q", spreadsheet_id, "ONLINE")
+    def go_gemfile(spreadsheet_id, repository, source)
+      puts "  gemfile" if DEV_OUTPUT
+      gemfile = Gemfile.new(repository)
 
-      return meta_data_online, mode_online
+      meta_data, mode = get_version_summary(gemfile, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
+
+      return meta_data, mode
     end
 
-    def go_online_node(spreadsheet_id)
-      puts "  online node" if DEV_OUTPUT
-      mobile_node = Npm.new("Jobber")
-      meta_data_online_node, mode_online_node = get_version_summary(mobile_node, "OnlineNodeVersionData!A:Q", spreadsheet_id, "ONLINE NODE")
+    def go_npm(spreadsheet_id, repository, source)
+      puts "  npm" if DEV_OUTPUT
+      npm = Npm.new(repository)
 
-      return meta_data_online_node, mode_online_node
+      meta_data, mode = get_version_summary(npm, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
+
+      return meta_data, mode
     end
 
-    def go_mobile(spreadsheet_id)
-      puts "  mobile" if DEV_OUTPUT
-      mobile = Npm.new("Jobber-mobile")
-      meta_data_mobile, mode_mobile = get_version_summary(mobile, "MobileVersionData!A:Q", spreadsheet_id, "MOBILE")
-
-      return meta_data_mobile, mode_mobile
-    end
-
-    def get_version_summary(parser, range, spreadsheet_id, source)
-      parsed_results, meta_data = parser.get_versions
+    def get_version_summary(parser, range, spreadsheet_id, repository, source)
+      parsed_results, meta_data = parser.get_versions(source)
 
       mode = get_mode_summary(parsed_results, meta_data)
-      data = spreadsheet_data(parsed_results, source)
 
-      puts "    updating spreadsheet" if DEV_OUTPUT
-      update_spreadsheet(spreadsheet_id, range, data)
+      if @update_spreadsheet
+        puts "    updating spreadsheet #{source}" if DEV_OUTPUT
+        data = spreadsheet_data(parsed_results, source)
+        update_spreadsheet(spreadsheet_id, range, data)
+      end
 
-      puts "    slack notify" if DEV_OUTPUT
-      notify(parsed_results)
+      if @update_server
+        puts "    updating server" if DEV_OUTPUT
+
+        data = server_data(parsed_results, repository, source).to_json
+        zipped_data = Zlib::Deflate.deflate(data)
+
+        LibraryTracking.upload(zipped_data)
+      end
+
+      puts "All Done!" if DEV_OUTPUT
 
       return meta_data, mode
     end
@@ -97,18 +172,81 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
+    def server_data(results, repository, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      libraries = []
+      new_versions = []
+      vulns = []
+      dependencies = []
+
+      missing_dependency_keys = [] # TODO: handle missing keys
+      results.each do |real_name, row|
+        name = OBFUSCATE_WORDS ? obfuscate(real_name) : real_name
+
+        libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version})
+        row.vulnerabilities&.each do |vuln|
+          permalink = OBFUSCATE_WORDS ? "https://github.com/advisories" : vuln.permalink
+          identifier = OBFUSCATE_WORDS ? "\"GHSA-XXX\", \"CVE-XXX\"" : vuln.identifier.join(", ")
+          vulns.push({library: name, identifier: identifier, assigned_severity: vuln.assigned_severity, url: permalink, state: vuln.state, fixed_at: vuln.fixed_at})
+        end
+
+        new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch}) unless row.latest_version.nil?
+
+        if row.dependency_graph.nil?
+          missing_dependency_keys.push(name)
+        else
+          dependency_graph = OBFUSCATE_WORDS ? obfuscate_dependency_graph([row.dependency_graph]).first : row.dependency_graph
+          dependencies.push(dependency_graph.deep_to_h)
+        end
+      end
+
+      {
+        source: source.downcase,
+        repository: repository,
+        libraries: libraries,
+        new_versions: new_versions,
+        vulnerabilities: vulns,
+        dependencies: dependencies,
+      }
+    end
+
+    def obfuscate_dependency_graph(dependency_graph)
+      return if dependency_graph.nil?
+
+      dependency_graph.each do |dependency|
+        next if dependency.name.include?(":") # If there is alrady a colon, it is already obfuscated
+        dependency.name = obfuscate(dependency.name)
+        dependency.parents = obfuscate_dependency_graph(dependency.parents)
+      end
+    end
+
     def spreadsheet_data(results, source)
       header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
       data = [header_row]
 
+      case source
+      when "npm"
+        legacy_source= "MOBILE"
+      when "gemfile"
+        legacy_source= "ONLINE"
+      else
+        legacy_source= "UNKNOWN"
+      end
+
       data << ["Updated: #{Time.now.utc}"]
 
       results.each do |name, row|
+        vuln = row.vulnerabilities.nil? ? nil:row.vulnerabilities.select { |v| v.state != "FIXED" }.first
+        if vuln.nil?
+          cvss = nil
+        else
+          cvss = "#{vuln.assigned_severity}#{vuln.identifier}"
+        end
+
         data << [
           name,
           row.owner,
           row.parent,
-          source,
+          legacy_source,
           row.current_version,
           row.current_version_date,
           row.latest_version,
@@ -117,11 +255,11 @@ module LibraryVersionAnalysis
           row.minor,
           row.patch,
           row.age,
-          row.cvss,
+          cvss,
           '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
           '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
           '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
-          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))'
+          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))',
         ]
       end
 
@@ -140,7 +278,7 @@ module LibraryVersionAnalysis
       service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
     end
 
-    def get_mode_summary(results, meta_data)
+    def get_mode_summary(results, meta_data) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       mode_summary = ModeSummary.new
       mode_summary.one_major = 0
       mode_summary.two_major = 0
@@ -154,6 +292,8 @@ module LibraryVersionAnalysis
 
       results.each do |hash_line|
         line = hash_line[1]
+
+        next if line.major.nil? # For libraries added for completeness of set, the following will all be empty
 
         if line.major.positive?
           mode_summary.one_major = mode_summary.one_major + 1 if line.major == 1
@@ -183,29 +323,20 @@ module LibraryVersionAnalysis
 
       results.each do |hash_line|
         line = hash_line[1]
-        if (!line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time )
-          message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.cvss}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
-          SlackNotify.notify(message, "security-alerts")
+        if !line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time
+          message = ":warning: NEW Dependabot alert! :warning:\n\nPackage: #{hash_line[0]}\n#{line.vulnerabilities}\n\nOwned by #{line.owner}\n#{line.dependabot_permalink}"
+          SlackNotify.notify(message)
         end
       end
     end
 
-    def unowned_needs_attention?(line)
+    def unowned_needs_attention?(line) # rubocop:disable Metrics/AbcSize
       return false unless line.owner == :unspecified || line.owner == :transitive_unspecified || line.owner == :unknown
 
       return true if line.major.positive?
       return true if line.major.zero? && line.minor > 20
       return true if !line.age.nil? && line.age > 3.0
-      return true unless line.cvss.nil?
-    end
-
-    def build_mode_results(mode_results)
-      results = {}
-      results[:online] = mode_results_specific(mode_results, :online) unless mode_results[:online].nil?
-      results[:online_node] = mode_results_specific(mode_results, :online_node) unless mode_results[:online_node].nil?
-      results[:mobile] = mode_results_specific(mode_results, :mobile) unless mode_results[:mobile].nil?
-
-      return results
+      return true unless line.vulnerabilities.nil?
     end
 
     def mode_results_specific(mode_results, source)

@@ -1,5 +1,27 @@
 #!/usr/bin/env ruby
 
 require "library_version_analysis"
-results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: ARGV[0], online: ARGV[1], online_node: ARGV[2], mobile: ARGV[3])
+
+puts "Got #{ARGV.count} arguments"
+ARGV.each do |arg|
+  puts arg
+end
+
+if ARGV.count == 1
+  spreadsheet_id = ARGV[0]
+  repository = "jobber-mobile"
+  source = "npm"
+elsif ARGV.count == 2
+  # this supports legacy calls
+  spreadsheet_id = ""
+  repository = ARGV[0]
+  source = ARGV[1]
+else
+  puts "Usage: analyze <spreadsheet_id> <repository> <source>"
+
+  Kernel.exit(1)
+end
+
+# results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: ARGV[0], repository: "jobber-mobile", source: "npm")
+results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 puts JSON.generate(results)

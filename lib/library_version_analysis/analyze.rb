@@ -1,8 +1,10 @@
 module LibraryVersionAnalysis
   class Analyze
-    def self.go(_) # TODO: This will get resolved once we merge in the server rewrite
+
+    def self.go(repository, source)
       spreadsheet_id = ENV["VERSION_STATUS_SPREADSHEET_ID"]
-      results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: spreadsheet_id, online: "true", online_node: "true", mobile: "false")
+
+      results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 
       merged_result = {}
       results.keys.each { |key| merged_result.merge!(results[key]) }
