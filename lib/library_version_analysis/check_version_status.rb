@@ -2,6 +2,7 @@ require "googleauth"
 require "google/apis/sheets_v4"
 require "pry-byebug"
 require "library_version_analysis/library_tracking"
+require "library_version_analysis/configuration"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -73,6 +74,8 @@ module LibraryVersionAnalysis
     end
 
     def initialize
+      LibraryVersionAnalysis::Configuration.configure
+
       if OBFUSCATE_WORDS # rubocop:disable Style/GuardClause
         @word_list = []
 
@@ -152,8 +155,11 @@ module LibraryVersionAnalysis
 
       if @update_server
         puts "    updating server" if DEV_OUTPUT
-        data = server_data(parsed_results, repository, source)
-        LibraryTracking.upload(data.to_json)
+
+        data = server_data(parsed_results, repository, source).to_json
+        zipped_data = Zlib::Deflate.deflate(data)
+
+        LibraryTracking.upload(zipped_data)
       end
 
       puts "All Done!" if DEV_OUTPUT

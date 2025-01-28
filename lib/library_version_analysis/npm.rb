@@ -1,4 +1,5 @@
 require "library_version_analysis/ownership"
+require "library_version_analysis/configuration"
 
 module LibraryVersionAnalysis
   class Npm
@@ -140,7 +141,7 @@ module LibraryVersionAnalysis
 
     def new_version_line(current_version)
       Versionline.new(
-        owner: :unknown,
+        owner: LibraryVersionAnalysis::Configuration.get(:default_owner_name),
         current_version: current_version,
         current_version_date: "",
         latest_version_date: ""
@@ -206,6 +207,8 @@ module LibraryVersionAnalysis
     end
 
     def calculate_version(current_version, new_version)
+      return "" if current_version.nil? || current_version.empty?
+
       left, right = current_version.split("..")
       if right.nil?
         if left == new_version # rubocop:disable Style/GuardClause

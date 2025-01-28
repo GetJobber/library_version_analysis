@@ -1,4 +1,5 @@
 require "library_version_analysis/ownership"
+require "library_version_analysis/configuration"
 require "code_ownership"
 
 module LibraryVersionAnalysis
@@ -109,11 +110,10 @@ module LibraryVersionAnalysis
         end
 
         scan = scan_result[0]
-
         next if scan[0] == "ruby" # ruby is special case, but this will mess up meta data slightly. need to figure that out
 
         vv = Versionline.new(
-          owner: :unknown,
+          owner:  LibraryVersionAnalysis::Configuration.get(:default_owner_name),
           current_version: scan[1],
           current_version_date: scan[2],
           latest_version: scan[3],
@@ -191,7 +191,8 @@ module LibraryVersionAnalysis
     end
 
     def add_ownership_from_gemspecs(parsed_results)
-      dependencies = {}
+      default_owner = LibraryVersionAnalysis::Configuration.get(:default_owner_name)
+
       Dir.glob(File.join("gems", "**", "*.gemspec")) do |gemspec_file|
         File.foreach(gemspec_file) do |line|
           scan_result = line.scan(/spec.add_.*dependency\s*"(\S*)"/)
@@ -199,7 +200,7 @@ module LibraryVersionAnalysis
           next if scan_result.nil? || scan_result.empty?
 
           library = scan_result[0][0]
-          next if(parsed_results.has_key?(library) && parsed_results[library].owner != :unknown)
+          next if(parsed_results.has_key?(library) && parsed_results[library].owner != default_owner)
 
           team = CodeOwnership.for_file(gemspec_file)
           parsed_results[library]&.owner = team.raw_hash["group"]
@@ -208,36 +209,13 @@ module LibraryVersionAnalysis
     end
 
     def add_special_case_ownerships(parsed_results)
-      special_cases = {
-        actioncable: ":api_platform",
-        actionmailbox: ":api_platform",
-        actionmailer: ":api_platform",
-        actionpack: ":api_platform",
-        actiontext: ":api_platform",
-        actionview: ":api_platform",
-        activejob: ":api_platform",
-        activemodel: ":api_platform",
-        activerecord: ":api_platform",
-        activestorage: ":api_platform",
-        activesupport: ":api_platform",
-        jobber_common_async: ":enablers",
-        jobber_common_base: ":enablers",
-        jobber_common_dev_setup: ":enablers",
-        jobber_common_concerns: ":enablers",
-        jobber_common_configuration: ":enablers",
-        jobber_monkey_patches: ":enablers",
-        jobber_opensearch_client: ":enablers",
-        rails: ":api_platform",
-        railties: ":api_platform",
-      }
-
-      special_cases.each do |name, owner|
-        if parsed_results.has_key?(name.to_s)
-          parsed_results[name.to_s].owner = owner
-          parsed_results[name.to_s].owner_reason = "-assigned-in-code-"
-          parsed_results[name.to_s].parent = "Rails"
+      LibraryVersionAnalysis::Configuration.get(:special_case_ownerships).each do |name, details|
+        if parsed_results.has_key?(name)
+          parsed_results[name].owner = details["owner"]
+          parsed_results[name].owner_reason = "-assigned-in-code-"
+          parsed_results[name].parent = details["parent"]
         else
-          parsed_results[name.to_s] = Versionline.new(owner: owner, owner_reason: "-assigned-in-code-", major: 0, minor: 0, patch: 0)
+          parsed_results[name] = Versionline.new(owner: details["owner"], parent: details["parent"], owner_reason: "-assigned-in-code-", major: 0, minor: 0, patch: 0)
         end
       end
     end
@@ -253,7 +231,7 @@ module LibraryVersionAnalysis
           library = parsed_results[name]
           if library.nil?
             vv = Versionline.new(
-              owner: :unknown,
+              owner: LibraryVersionAnalysis::Configuration.get(:default_owner_name),
               current_version: scan_result[0][1]
             )
 

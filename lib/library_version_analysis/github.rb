@@ -1,6 +1,7 @@
 require "graphql/client"
 require "graphql/client/http"
 require "pry-byebug"
+require "library_version_analysis/configuration"
 
 module LibraryVersionAnalysis
   class Github
@@ -160,7 +161,7 @@ module LibraryVersionAnalysis
           end
         else
           vv = Versionline.new(
-            owner: :unknown,
+            owner: LibraryVersionAnalysis::Configuration.get(:default_owner_name),
             current_version: "?",
             major: 0,
             minor: 0,
