@@ -2,11 +2,6 @@
 
 require "library_version_analysis"
 
-puts "Got #{ARGV.count} arguments"
-ARGV.each do |arg|
-  puts arg
-end
-
 if ARGV.count == 1
   spreadsheet_id = ARGV[0]
   repository = "jobber-mobile"
@@ -22,6 +17,5 @@ else
   Kernel.exit(1)
 end
 
-# results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: ARGV[0], repository: "jobber-mobile", source: "npm")
 results = LibraryVersionAnalysis::CheckVersionStatus.run(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
 puts JSON.generate(results)
