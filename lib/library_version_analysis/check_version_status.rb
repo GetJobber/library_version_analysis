@@ -40,7 +40,7 @@ module LibraryVersionAnalysis
     end
   end
 
-  DEV_OUTPUT = true # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  DEV_OUTPUT = false # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
   OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
