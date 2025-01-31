@@ -64,7 +64,7 @@ module LibraryVersionAnalysis
         end
       end
 
-      puts "Created dependency graph for #{@parent_count} libraries"
+      puts "Created dependency graph for #{@parent_count} libraries" if LibraryVersionAnalysis::DEV_OUTPUT
 
       return all_nodes
     end
@@ -244,11 +244,6 @@ module LibraryVersionAnalysis
       return all_nodes if new_nodes.nil?
 
       new_nodes.keys.each do |name|
-        # if push_unique(name).nil?
-        #   puts "Cycle detected: #{name}"
-        #   next
-        # end
-
         parent = all_nodes[name]
         if parent.nil?
           @parent_count += 1
@@ -294,7 +289,7 @@ module LibraryVersionAnalysis
       return if node.nil?
 
       if push_unique(node.name).nil?
-        puts "\t\tCycle detected: #{node.name}"
+        puts "\t\tCycle detected: #{node.name}" if LibraryVersionAnalysis::DEV_OUTPUT
         return true
       end
 
