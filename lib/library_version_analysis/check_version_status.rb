@@ -144,7 +144,6 @@ module LibraryVersionAnalysis
 
     def get_version_summary(parser, range, spreadsheet_id, repository, source)
       parsed_results, meta_data = parser.get_versions(source)
-
       mode = get_mode_summary(parsed_results, meta_data)
 
       if @update_spreadsheet
@@ -155,11 +154,8 @@ module LibraryVersionAnalysis
 
       if @update_server
         puts "    updating server" if DEV_OUTPUT
-
         data = server_data(parsed_results, repository, source).to_json
-        zipped_data = Zlib::Deflate.deflate(data)
-
-        LibraryTracking.upload(zipped_data)
+        LibraryTracking.upload(data)
       end
 
       puts "All Done!" if DEV_OUTPUT
