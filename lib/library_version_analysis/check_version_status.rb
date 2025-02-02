@@ -137,7 +137,13 @@ module LibraryVersionAnalysis
       puts "  npm" if DEV_OUTPUT
       npm = Npm.new(repository)
 
-      meta_data, mode = get_version_summary(npm, "MobileVersionData!A:Q", spreadsheet_id, repository, source)
+      if repository == "jobber" # ugly legacy hack
+        range = "OnlineNodeVersionData!A:Q"
+      else
+        range = "MobileVersionData!A:Q"
+      end
+
+      meta_data, mode = get_version_summary(npm, range, spreadsheet_id, repository, source)
 
       return meta_data, mode
     end
@@ -148,7 +154,7 @@ module LibraryVersionAnalysis
 
       if @update_spreadsheet
         puts "    updating spreadsheet #{source}" if DEV_OUTPUT
-        data = spreadsheet_data(parsed_results, source)
+        data = spreadsheet_data(parsed_results, repository, source)
         update_spreadsheet(spreadsheet_id, range, data)
       end
 
@@ -215,13 +221,17 @@ module LibraryVersionAnalysis
       end
     end
 
-    def spreadsheet_data(results, source)
+    def spreadsheet_data(results, repository, source)
       header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
       data = [header_row]
 
       case source
       when "npm"
-        legacy_source= "MOBILE"
+        if repository == "jobber" # ugly legacy hack
+          legacy_source= "ONLINE NODE"
+        else
+          legacy_source= "MOBILE"
+        end
       when "gemfile"
         legacy_source= "ONLINE"
       else
