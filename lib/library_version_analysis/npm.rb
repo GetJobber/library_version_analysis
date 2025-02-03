@@ -89,8 +89,8 @@ module LibraryVersionAnalysis
 
     def read_file(path, check_time)
       # With this new file-read approach, we could be using old data. protect against that.
-      if !File.exist?(path) || (check_time && Time.now.utc - File.mtime(path) > 600) # 10 minutes
-        warn "Either could not find #{File.expand_path(path)} or it is more than 10 minutes old. Run \"npx libyear --json > libyear_report.txt\""
+      if !File.exist?(path) || (check_time && Time.now.utc - File.mtime(path) > 3600) # 1 hour. This is ruby, not rails. No nice "hours.ago"
+        warn "Either could not find #{File.expand_path(path)} or it is more than 1 hour old. Run \"npx libyear --json > libyear_report.txt\""
         exit -1
       end
 
