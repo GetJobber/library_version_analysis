@@ -6,7 +6,7 @@ module LibraryVersionAnalysis
       zipped_data = Zlib::Deflate.deflate(json_data)
 
       uri = URI(ENV["LIBRARY_UPLOAD_URL"])
-      puts "  updating server at #{uri}" if LibraryVersionAnalysis::DEV_OUTPUT
+      puts "  updating server at #{uri}" if LibraryVersionAnalysis.dev_output?
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = uri.scheme == "https"
       http.read_timeout = 300
@@ -14,7 +14,7 @@ module LibraryVersionAnalysis
       req["X-Upload-Key"] = ENV["UPLOAD_KEY"]
       req.body = zipped_data
       res = http.request(req)
-      puts "response #{res.code}:#{res.msg}\n#{res.body}" if LibraryVersionAnalysis::DEV_OUTPUT
+      puts "response #{res.code}:#{res.msg}\n#{res.body}" if LibraryVersionAnalysis.dev_output?
     end
   end
 end

@@ -11,10 +11,10 @@ module LibraryVersionAnalysis
 
     def get_versions(source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_libraries = {}
-      puts("\tNPM adding all libraries") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tNPM adding all libraries") if LibraryVersionAnalysis.dev_output?
       all_libraries = add_all_libraries
 
-      puts("\tNPM running libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tNPM running libyear") if LibraryVersionAnalysis.dev_output?
 
       libyear_results = run_libyear
       if libyear_results.nil?
@@ -22,28 +22,28 @@ module LibraryVersionAnalysis
         exit -1
       end
 
-      puts("\tNPM parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tNPM parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
 
-      puts("\tNPM dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tNPM dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
 
       # Jobber mobile has a lot of dependencies that cause problems with the dependency graph
       # so we skip it for now
       if @github_repo == "jobber-mobile"
-        puts("\tSKIPPING NPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
+        puts("\tSKIPPING NPM building dependency graph") if LibraryVersionAnalysis.dev_output?
       else
-        puts("\tNPM building dependency graph") if LibraryVersionAnalysis::DEV_OUTPUT
+        puts("\tNPM building dependency graph") if LibraryVersionAnalysis.dev_output?
         add_dependency_graph(parsed_results)
       end
 
-      puts("\tNPM breaking cycles") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tNPM breaking cycles") if LibraryVersionAnalysis.dev_output?
       break_cycles(parsed_results)
 
-      puts("\tNPM adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tNPM adding ownerships") if LibraryVersionAnalysis.dev_output?
       add_ownerships(parsed_results)
 
-      puts("NPM done") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("NPM done") if LibraryVersionAnalysis.dev_output?
 
       return parsed_results, meta_data
     end
@@ -70,7 +70,7 @@ module LibraryVersionAnalysis
         end
       end
 
-      puts "Created dependency graph for #{@parent_count} libraries" if LibraryVersionAnalysis::DEV_OUTPUT
+      puts "Created dependency graph for #{@parent_count} libraries" if LibraryVersionAnalysis.dev_output?
 
       return all_nodes
     end
@@ -295,7 +295,7 @@ module LibraryVersionAnalysis
       return if node.nil?
 
       if push_unique(node.name).nil?
-        puts "\t\tCycle detected: #{node.name}" if LibraryVersionAnalysis::DEV_OUTPUT
+        puts "\t\tCycle detected: #{node.name}" if LibraryVersionAnalysis.dev_output?
         return true
       end
 

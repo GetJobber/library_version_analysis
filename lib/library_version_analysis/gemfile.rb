@@ -11,7 +11,7 @@ module LibraryVersionAnalysis
     end
 
     def get_versions(source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      puts("\tGemfile running libyear versions") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile running libyear versions") if LibraryVersionAnalysis.dev_output?
       libyear_results = run_libyear("--versions")
 
       if libyear_results.nil?
@@ -19,28 +19,28 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
-      puts("\tGemfile parsing libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear_versions(libyear_results)
 
-      puts("\tGemfile dependabot") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
 
-      puts("\tGemfile running libyear libyear") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile running libyear libyear") if LibraryVersionAnalysis.dev_output?
       libyear_results = run_libyear("--libyear")
       unless libyear_results.nil? # rubocop:disable Style/IfUnlessModifier
         parsed_results, meta_data = parse_libyear_libyear(libyear_results, parsed_results, meta_data)
       end
 
-      puts("\tGemfile adding remaining libraries") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile adding remaining libraries") if LibraryVersionAnalysis.dev_output?
       add_remaining_libraries(parsed_results)
 
-      puts("\tGemfile building dependency graphs") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile building dependency graphs") if LibraryVersionAnalysis.dev_output?
       add_dependency_graph(why_init, parsed_results)
 
-      puts("\tGemfile adding ownerships") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("\tGemfile adding ownerships") if LibraryVersionAnalysis.dev_output?
       add_ownerships(parsed_results)
 
-      puts("Gemfile done") if LibraryVersionAnalysis::DEV_OUTPUT
+      puts("Gemfile done") if LibraryVersionAnalysis.dev_output?
 
       return parsed_results, meta_data
     end
@@ -228,6 +228,7 @@ module LibraryVersionAnalysis
         unless scan_result.nil? || scan_result.empty?
           name = scan_result[0][0]
 
+          # binding.pry if name == "hoek" 
           library = parsed_results[name]
           if library.nil?
             vv = Versionline.new(
@@ -238,6 +239,7 @@ module LibraryVersionAnalysis
             parsed_results[name] = vv
           else
             if library.current_version == "?"
+              # binding.pry
               library.current_version = scan_result[0][1]
             end
           end

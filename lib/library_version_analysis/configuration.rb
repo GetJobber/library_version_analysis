@@ -22,7 +22,7 @@ module LibraryVersionAnalysis
         yaml_config = YAML.load_file(config_file_path)
       else
         yaml_config = {}
-        puts "No config file found! Using defaults." if DEV_OUTPUT
+        puts "No config file found! Using defaults." if LibraryVersionAnalysis.dev_output?
       end
 
       @config[:default_owner_name] = yaml_config.fetch("default_owner_name", :unknown).to_sym

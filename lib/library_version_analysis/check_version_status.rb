@@ -40,7 +40,10 @@ module LibraryVersionAnalysis
     end
   end
 
-  DEV_OUTPUT = false # NOTE: Having any output other than the final results currently breaks the JSON parsing in libraryVersionAnalysis.ts on mobile
+  def self.dev_output?
+    ENV["DEV_OUTPUT"]&.downcase == "true"
+  end
+
   OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
@@ -103,7 +106,7 @@ module LibraryVersionAnalysis
         variant = "legacy"
       end
 
-      puts "Check Version #{variant}" if DEV_OUTPUT
+      puts "Check Version #{variant}" if LibraryVersionAnalysis.dev_output?
 
       case source
       when "npm"
@@ -115,9 +118,9 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
-      print_summary(source, meta_data, mode) if DEV_OUTPUT
+      print_summary(source, meta_data, mode) if LibraryVersionAnalysis.dev_output?
 
-      puts "Done" if DEV_OUTPUT
+      puts "Done" if LibraryVersionAnalysis.dev_output?
 
       return {
         "#{repository}/#{source}": mode,
@@ -125,7 +128,7 @@ module LibraryVersionAnalysis
     end
 
     def go_gemfile(spreadsheet_id, repository, source)
-      puts "  gemfile" if DEV_OUTPUT
+      puts "  gemfile" if LibraryVersionAnalysis.dev_output?
       gemfile = Gemfile.new(repository)
 
       meta_data, mode = get_version_summary(gemfile, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
@@ -134,7 +137,7 @@ module LibraryVersionAnalysis
     end
 
     def go_npm(spreadsheet_id, repository, source)
-      puts "  npm" if DEV_OUTPUT
+      puts "  npm" if LibraryVersionAnalysis.dev_output?
       npm = Npm.new(repository)
 
       if repository == "jobber" # ugly legacy hack
@@ -153,18 +156,18 @@ module LibraryVersionAnalysis
       mode = get_mode_summary(parsed_results, meta_data)
 
       if @update_spreadsheet
-        puts "    updating spreadsheet #{source}" if DEV_OUTPUT
+        puts "    updating spreadsheet #{source}" if LibraryVersionAnalysis.dev_output?
         data = spreadsheet_data(parsed_results, repository, source)
         update_spreadsheet(spreadsheet_id, range, data)
       end
 
       if @update_server
-        puts "    updating server" if DEV_OUTPUT
+        puts "    updating server" if LibraryVersionAnalysis.dev_output?
         data = server_data(parsed_results, repository, source).to_json
         LibraryTracking.upload(data)
       end
 
-      puts "All Done!" if DEV_OUTPUT
+      puts "All Done!" if LibraryVersionAnalysis.dev_output?
 
       return meta_data, mode
     end
@@ -325,8 +328,6 @@ module LibraryVersionAnalysis
     def notify(results)
       recent_time = Time.now - 25 * 60 * 60
 
-      # SlackNotify.notify("Don't panic. Just testing, to make slack alerts from lib analysis still happen", "security-alerts")
-
       results.each do |hash_line|
         line = hash_line[1]
         if !line.dependabot_created_at.nil? && line.dependabot_created_at > recent_time
@@ -357,7 +358,7 @@ module LibraryVersionAnalysis
     end
 
     def print_summary(source, meta_data, mode_data)
-      puts "#{source}: #{meta_data}, #{mode_data}"
+      puts "#{source}: #{meta_data}, #{mode_data}" if LibraryVersionAnalysis.dev_output?
     end
   end
 end
