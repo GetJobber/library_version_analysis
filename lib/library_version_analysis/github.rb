@@ -1,6 +1,5 @@
 require "graphql/client"
 require "graphql/client/http"
-require "pry-byebug"
 require "library_version_analysis/configuration"
 
 module LibraryVersionAnalysis

@@ -5,7 +5,6 @@ require "library_version_analysis/gemfile"
 require "library_version_analysis/npm"
 require "library_version_analysis/version"
 require "library_version_analysis/slack_notify"
-require "pry-byebug"
 
 module LibraryVersionAnalysis
   class Error < StandardError; end
