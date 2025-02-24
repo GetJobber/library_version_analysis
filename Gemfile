@@ -4,7 +4,7 @@ source "https://rubygems.org"
 gemspec
 
 gem "rspec", "~> 3.0"
-gem "graphql", "~> 2.0.24"
+gem "graphql", "~> 2.4.8"
 gem "graphql-client", "~> 0.18"
 
 plugin "bundler-why"
