@@ -28,14 +28,8 @@ module LibraryVersionAnalysis
       puts("\tNPM dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
 
-      # Jobber mobile has a lot of dependencies that cause problems with the dependency graph
-      # so we skip it for now
-      if @github_repo == "jobber-mobile"
-        puts("\tSKIPPING NPM building dependency graph") if LibraryVersionAnalysis.dev_output?
-      else
-        puts("\tNPM building dependency graph") if LibraryVersionAnalysis.dev_output?
-        add_dependency_graph(parsed_results)
-      end
+      puts("\tNPM building dependency graph") if LibraryVersionAnalysis.dev_output?
+      add_dependency_graph(parsed_results)
 
       puts("\tNPM breaking cycles") if LibraryVersionAnalysis.dev_output?
       break_cycles(parsed_results)
