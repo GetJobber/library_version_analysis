@@ -183,6 +183,8 @@ module LibraryVersionAnalysis
       vulns = []
       dependencies = []
 
+      puts("\tPURGING NPM dependency graph data") if LibraryVersionAnalysis.dev_output? && repository == "jobber-mobile" # This might be temporary. The dependency graph is too big.
+
       missing_dependency_keys = [] # TODO: handle missing keys
       results.each do |real_name, row|
         name = OBFUSCATE_WORDS ? obfuscate(real_name) : real_name
@@ -196,7 +198,7 @@ module LibraryVersionAnalysis
 
         new_versions.push({name: name, version: row.latest_version, major: row.major, minor: row.minor, patch: row.patch}) unless row.latest_version.nil?
 
-        if row.dependency_graph.nil?
+        if row.dependency_graph.nil? || repository == "jobber-mobile" #Not using the dependency graph for jobber-mobile might be temporary. It is currently too big.
           missing_dependency_keys.push(name)
         else
           dependency_graph = OBFUSCATE_WORDS ? obfuscate_dependency_graph([row.dependency_graph]).first : row.dependency_graph
