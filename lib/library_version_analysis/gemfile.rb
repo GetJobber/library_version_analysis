@@ -203,7 +203,8 @@ module LibraryVersionAnalysis
           next if(parsed_results.has_key?(library) && parsed_results[library].owner != default_owner)
 
           team = CodeOwnership.for_file(gemspec_file)
-          parsed_results[library]&.owner = team.raw_hash["group"]
+          group = team.raw_hash["group"]
+          parsed_results[library]&.owner = group.start_with?(":") ? group : ":#{group}"
         end
       end
     end
@@ -228,7 +229,6 @@ module LibraryVersionAnalysis
         unless scan_result.nil? || scan_result.empty?
           name = scan_result[0][0]
 
-          # binding.pry if name == "hoek" 
           library = parsed_results[name]
           if library.nil?
             vv = Versionline.new(
@@ -239,7 +239,6 @@ module LibraryVersionAnalysis
             parsed_results[name] = vv
           else
             if library.current_version == "?"
-              # binding.pry
               library.current_version = scan_result[0][1]
             end
           end
