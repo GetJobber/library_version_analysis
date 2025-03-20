@@ -110,9 +110,12 @@ module LibraryVersionAnalysis
     end
 
     def add_alerts_working_set(response_alerts, found_alerts, earliest_target_date, target_ecosystem) # rubocop:disable Metrics/AbcSize
-      earliest_fixed_date = nil
+      handling_fixed_alerts = !earliest_target_date.nil?
 
       response_alerts.nodes.each do |alert|
+        # to minimize size of upload, we skip fixed alerts that are before the earliest_target_date
+        next if handling_fixed_alerts && DateTime.parse(alert.fixed_at) < earliest_target_date
+
         database_id = alert.security_vulnerability.advisory.database_id
         ecosystem = alert.security_vulnerability.package.ecosystem
 
@@ -127,16 +130,10 @@ module LibraryVersionAnalysis
             state: alert.state,
             fixed_at: alert.fixed_at,
           }
-
-          unless alert.fixed_at.nil? || earliest_target_date.nil?
-            new_date = DateTime.parse(alert.fixed_at)
-            earliest_fixed_date = new_date if earliest_fixed_date.nil? || new_date < earliest_fixed_date
-          end
         end
       end
 
       end_cursor = response_alerts.page_info.has_next_page ? response_alerts.page_info.end_cursor : nil
-      end_cursor = nil if !earliest_fixed_date.nil? && earliest_fixed_date < earliest_target_date
 
       return end_cursor
     end
