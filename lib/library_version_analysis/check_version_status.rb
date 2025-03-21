@@ -77,7 +77,8 @@ module LibraryVersionAnalysis
     end
 
     def initialize
-      LibraryVersionAnalysis::Configuration.configure
+      # Only configure if not already configured
+      LibraryVersionAnalysis::Configuration.configure unless LibraryVersionAnalysis::Configuration.keys.any?
 
       if OBFUSCATE_WORDS # rubocop:disable Style/GuardClause
         @word_list = []
@@ -113,6 +114,8 @@ module LibraryVersionAnalysis
         meta_data, mode = go_npm(spreadsheet_id, repository, source)
       when "gemfile"
         meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
+      when "poetry"
+        meta_data, mode = go_poetry(spreadsheet_id, repository, source)
       else
         puts "Don't recognize source #{source}"
         exit(-1)
@@ -125,6 +128,15 @@ module LibraryVersionAnalysis
       return {
         "#{repository}/#{source}": mode,
       }
+    end
+
+    def go_poetry(spreadsheet_id, repository, source)
+      puts "  poetry" if LibraryVersionAnalysis.dev_output?
+      poetry = Poetry.new(repository)
+
+      meta_data, mode = get_version_summary(poetry, "", nil, repository, source)
+
+      return meta_data, mode
     end
 
     def go_gemfile(spreadsheet_id, repository, source)

@@ -2,6 +2,7 @@
 module LibraryVersionAnalysis
   module Configuration
     @config = {}
+    @config_file_path = File.join(Dir.pwd, '/config/library_version_analysis.yml')
 
     def self.set(key, value)
       @config[key] = value
@@ -15,14 +16,20 @@ module LibraryVersionAnalysis
       @config.keys
     end
 
-    def self.configure
-      config_file_path = File.join(Dir.pwd, '/config/library_version_analysis.yml')
+    def self.config_file_path=(path)
+      @config_file_path = path
+    end
 
-      if File.exist?(config_file_path)
-        yaml_config = YAML.load_file(config_file_path)
+    def self.config_file_path
+      @config_file_path
+    end
+
+    def self.configure
+      if File.exist?(@config_file_path)
+        yaml_config = YAML.load_file(@config_file_path)
       else
         yaml_config = {}
-        puts "No config file found! Using defaults." if LibraryVersionAnalysis.dev_output?
+        puts "No config file found at #{@config_file_path}! Using defaults." if LibraryVersionAnalysis.dev_output?
       end
 
       @config[:default_owner_name] = yaml_config.fetch("default_owner_name", :unknown).to_sym
