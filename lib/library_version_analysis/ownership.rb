@@ -41,5 +41,13 @@ module LibraryVersionAnalysis
     def unknown_owner?(owner)
       owner.nil? || owner == "" || owner == :unknown || owner == :attention_needed || owner == :transitive_unspecified || owner == :unspecified
     end
+
+    def add_attention_needed(parsed_results)
+      parsed_results.each do |name, line|
+        next if line.vulnerabilities.nil? || line.vulnerabilities.empty?
+
+        line.owner = :attention_needed if unknown_owner?(line.owner)
+      end
+    end
   end
 end

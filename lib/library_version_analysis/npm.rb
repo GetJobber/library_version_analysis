@@ -204,6 +204,9 @@ module LibraryVersionAnalysis
 
       # 2nd pass for transitive ownership
       add_transitive_ownerships(parsed_results)
+
+      # 3rd pass for attention needed
+      add_attention_needed(parsed_results)
     end
 
     def calculate_version(current_version, new_version)
@@ -238,7 +241,7 @@ module LibraryVersionAnalysis
         end
       end
     end
-
+    
     # Recursive method used when building dependency graph for upload
     def build_dependency_graph(all_nodes, new_nodes, parents, depth=0) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       return all_nodes if new_nodes.nil?

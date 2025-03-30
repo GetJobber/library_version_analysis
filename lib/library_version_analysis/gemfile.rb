@@ -161,6 +161,7 @@ module LibraryVersionAnalysis
       add_ownership_from_gemspecs(parsed_results)
       add_special_case_ownerships(parsed_results)
       add_transitive_ownerships(parsed_results)
+      add_attention_needed(parsed_results)
     end
 
     def add_ownership_from_gemfile(parsed_results)
