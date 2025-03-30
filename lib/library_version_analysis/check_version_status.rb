@@ -316,10 +316,7 @@ module LibraryVersionAnalysis
           mode_summary.patch = mode_summary.patch + 1
         end
 
-        if unowned_needs_attention?(line)
-          mode_summary.unowned_issues = mode_summary.unowned_issues + 1
-          line.owner = ":attention_needed"
-        end
+        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if line.owner == :attention_needed
       end
 
       mode_summary.one_number = one_number(mode_summary)
@@ -337,15 +334,6 @@ module LibraryVersionAnalysis
           SlackNotify.notify(message)
         end
       end
-    end
-
-    def unowned_needs_attention?(line) # rubocop:disable Metrics/AbcSize
-      return false unless line.owner == :unspecified || line.owner == :transitive_unspecified || line.owner == :unknown
-
-      return true if line.major.positive?
-      return true if line.major.zero? && line.minor > 20
-      return true if !line.age.nil? && line.age > 3.0
-      return true unless line.vulnerabilities.nil?
     end
 
     def mode_results_specific(mode_results, source)
