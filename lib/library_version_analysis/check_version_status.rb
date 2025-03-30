@@ -1,6 +1,5 @@
 require "googleauth"
 require "google/apis/sheets_v4"
-require "pry-byebug"
 require "library_version_analysis/library_tracking"
 require "library_version_analysis/configuration"
 
