@@ -1,6 +1,24 @@
 #!/usr/bin/env ruby
 
 require "library_version_analysis"
+require "optparse"
+
+options = {}
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: analyze [options] <spreadsheet_id> [repository] [source]"
+
+  opts.on("-c", "--config PATH", "Path to config file") do |path|
+    options[:config_path] = path
+  end
+end
+
+parser.parse!
+
+# Set config path if provided
+LibraryVersionAnalysis::Configuration.config_file_path = options[:config_path] if options[:config_path]
+
+# Configure the library
+LibraryVersionAnalysis::Configuration.configure
 
 if ARGV.count == 1
   spreadsheet_id = ARGV[0]
@@ -11,9 +29,12 @@ elsif ARGV.count == 2
   spreadsheet_id = ""
   repository = ARGV[0]
   source = ARGV[1]
+elsif ARGV.count == 3
+  spreadsheet_id = ARGV[0]
+  repository = ARGV[1]
+  source = ARGV[2]
 else
-  puts "Usage: analyze <spreadsheet_id> <repository> <source>"
-
+  puts parser
   Kernel.exit(1)
 end
 
