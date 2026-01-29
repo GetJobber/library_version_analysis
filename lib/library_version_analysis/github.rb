@@ -10,6 +10,7 @@ module LibraryVersionAnalysis
     SOURCES = {
       "npm": "NPM",
       "gemfile": "RUBYGEMS",
+      "pnpm": "NPM",
     }.freeze
 
     HTTP_ADAPTER = GraphQL::Client::HTTP.new(URL) do

@@ -113,6 +113,8 @@ module LibraryVersionAnalysis
         meta_data, mode = go_npm(spreadsheet_id, repository, source)
       when "gemfile"
         meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
+      when "pnpm"
+        meta_data, mode = go_pnpm(spreadsheet_id, repository, source)
       else
         puts "Don't recognize source #{source}"
         exit(-1)
@@ -147,6 +149,15 @@ module LibraryVersionAnalysis
       end
 
       meta_data, mode = get_version_summary(npm, range, spreadsheet_id, repository, source)
+
+      return meta_data, mode
+    end
+
+    def go_pnpm(spreadsheet_id, repository, source)
+      puts "  pnpm" if LibraryVersionAnalysis.dev_output?
+      pnpm = Pnpm.new(repository)
+
+      meta_data, mode = get_version_summary(pnpm, "PnpmVersionData!A:Q", spreadsheet_id, repository, source)
 
       return meta_data, mode
     end
