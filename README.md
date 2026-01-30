@@ -65,6 +65,63 @@ ln -s ../library_version_analysis .
 source library_version_anaysis/version.sh
 library_version_analysis/run.sh
 
+## CI Pipeline Requirements for pnpm Workspaces
+
+For pnpm workspace repositories (monorepos), the CI pipeline must generate per-workspace libyear files before running the analysis. Each workspace gets its own libyear file with an underscore-based naming convention.
+
+### File Naming Convention
+
+| Workspace Path | Libyear Filename |
+|---------------|------------------|
+| Root (.) | `libyear_root.txt` |
+| apps/client | `libyear_apps_client.txt` |
+| apps/server | `libyear_apps_server.txt` |
+| packages/ui | `libyear_packages_ui.txt` |
+| Non-workspace repo | `libyear_report.txt` |
+
+### Example CI Script
+
+```bash
+#!/bin/bash
+# Generate libyear reports for each workspace
+
+# Root workspace
+pnpx libyear --package-manager pnpm --json > libyear_root.txt
+
+# Each workspace (skip root at index 0)
+for workspace in $(pnpm list -r --depth=-1 --json | jq -r '.[1:] | .[].path'); do
+  relative_path="${workspace#$(pwd)/}"
+  filename="libyear_${relative_path//\//_}.txt"
+  pnpx libyear --package-manager pnpm --json --cwd "$workspace" > "$filename" || true
+done
+```
+
+### Example CI Configuration (CircleCI/GitHub Actions)
+
+```yaml
+- name: Generate libyear reports
+  run: |
+    # Root workspace
+    pnpx libyear --package-manager pnpm --json > libyear_root.txt
+    
+    # Each workspace (skip root at index 0)
+    for workspace in $(pnpm list -r --depth=-1 --json | jq -r '.[1:] | .[].path'); do
+      relative_path="${workspace#$(pwd)/}"
+      filename="libyear_${relative_path//\//_}.txt"
+      pnpx libyear --package-manager pnpm --json --cwd "$workspace" > "$filename" || true
+    done
+
+- name: Run library analysis
+  run: ./exe/analyze $REPO_NAME pnpm
+```
+
+### Non-workspace Repositories
+
+For non-workspace pnpm repositories (single package.json), continue using the existing single file approach:
+
+```bash
+pnpx libyear --package-manager pnpm --all --json > libyear_report.txt
+```
 
 ## Contributing
 

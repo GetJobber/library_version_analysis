@@ -491,4 +491,204 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result).to eq([])
     end
   end
+
+  describe "#source_name_for_workspace" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    it "should return 'root' for the root workspace path" do
+      allow(Dir).to receive(:pwd).and_return("/project")
+      expect(analyzer.source_name_for_workspace("/project")).to eq("root")
+    end
+
+    it "should return 'root' for '.' path" do
+      allow(Dir).to receive(:pwd).and_return("/project")
+      expect(analyzer.source_name_for_workspace("/project")).to eq("root")
+    end
+
+    it "should return relative path for nested workspace" do
+      allow(Dir).to receive(:pwd).and_return("/project")
+      expect(analyzer.source_name_for_workspace("/project/apps/anchor")).to eq("apps/anchor")
+    end
+
+    it "should return relative path for packages workspace" do
+      allow(Dir).to receive(:pwd).and_return("/project")
+      expect(analyzer.source_name_for_workspace("/project/packages/bits")).to eq("packages/bits")
+    end
+  end
+
+  describe "#single_package_repo?" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    before do
+      allow(Dir).to receive(:pwd).and_return("/project")
+    end
+
+    it "should return true for single package at root" do
+      workspaces = [{ "name" => "my-app", "path" => "/project" }]
+      expect(analyzer.single_package_repo?(workspaces)).to be true
+    end
+
+    it "should return false for multiple workspaces" do
+      workspaces = [
+        { "name" => "root", "path" => "/project" },
+        { "name" => "app-a", "path" => "/project/apps/app-a" }
+      ]
+      expect(analyzer.single_package_repo?(workspaces)).to be false
+    end
+
+    it "should return false for single workspace not at root" do
+      workspaces = [{ "name" => "app-a", "path" => "/project/apps/app-a" }]
+      expect(analyzer.single_package_repo?(workspaces)).to be false
+    end
+  end
+
+  describe "#libyear_filename_for_source" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    it "should return 'libyear_report.txt' for 'pnpm' source (backwards compatible)" do
+      expect(analyzer.send(:libyear_filename_for_source, "pnpm")).to eq("libyear_report.txt")
+    end
+
+    it "should return 'libyear_root.txt' for 'root' source" do
+      expect(analyzer.send(:libyear_filename_for_source, "root")).to eq("libyear_root.txt")
+    end
+
+    it "should convert slashes to underscores for nested paths" do
+      expect(analyzer.send(:libyear_filename_for_source, "apps/anchor")).to eq("libyear_apps_anchor.txt")
+    end
+
+    it "should handle deeply nested paths" do
+      expect(analyzer.send(:libyear_filename_for_source, "packages/ui/components")).to eq("libyear_packages_ui_components.txt")
+    end
+  end
+
+  describe "#get_versions_for_all_workspaces" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    let(:libyear_root) do
+      '[{"dependency": "typescript", "drift": 0.5, "major": 0, "minor": 1, "patch": 2, "available": "5.0.0"}]'
+    end
+
+    let(:libyear_apps_anchor) do
+      '[{"dependency": "react", "drift": 0.3, "major": 0, "minor": 0, "patch": 1, "available": "18.2.0"}]'
+    end
+
+    context "with workspace repo (multiple workspaces)" do
+      let(:workspaces) do
+        [
+          { "name" => "root", "path" => "/project" },
+          { "name" => "@jobber/anchor", "path" => "/project/apps/anchor" }
+        ]
+      end
+
+      before do
+        allow(Dir).to receive(:pwd).and_return("/project")
+        allow(analyzer).to receive(:discover_workspaces).and_return(workspaces)
+        allow(analyzer).to receive(:get_versions_for_workspace).with("/project", "root").and_return([{ "typescript" => {} }, double(total_age: 0.5)])
+        allow(analyzer).to receive(:get_versions_for_workspace).with("/project/apps/anchor", "apps/anchor").and_return([{ "react" => {} }, double(total_age: 0.3)])
+      end
+
+      it "should return hash with multiple workspace sources" do
+        result = analyzer.get_versions_for_all_workspaces
+
+        expect(result.keys).to contain_exactly("root", "apps/anchor")
+      end
+
+      it "should return results for root workspace" do
+        result = analyzer.get_versions_for_all_workspaces
+
+        expect(result["root"][:results]).to have_key("typescript")
+      end
+
+      it "should return results for nested workspace" do
+        result = analyzer.get_versions_for_all_workspaces
+
+        expect(result["apps/anchor"][:results]).to have_key("react")
+      end
+    end
+
+    context "with non-workspace repo (single package at root)" do
+      let(:workspaces) do
+        [{ "name" => "my-simple-app", "path" => "/project" }]
+      end
+
+      before do
+        allow(Dir).to receive(:pwd).and_return("/project")
+        allow(analyzer).to receive(:discover_workspaces).and_return(workspaces)
+        allow(analyzer).to receive(:get_versions).with("pnpm").and_return([{ "lodash" => {} }, double(total_age: 1.0)])
+      end
+
+      it "should return hash with single 'pnpm' source for backwards compatibility" do
+        result = analyzer.get_versions_for_all_workspaces
+
+        expect(result.keys).to eq(["pnpm"])
+      end
+
+      it "should call get_versions with 'pnpm' source" do
+        expect(analyzer).to receive(:get_versions).with("pnpm")
+        analyzer.get_versions_for_all_workspaces
+      end
+
+      it "should return results under 'pnpm' key" do
+        result = analyzer.get_versions_for_all_workspaces
+
+        expect(result["pnpm"][:results]).to have_key("lodash")
+      end
+
+      it "should return meta_data under 'pnpm' key" do
+        result = analyzer.get_versions_for_all_workspaces
+
+        expect(result["pnpm"][:meta_data].total_age).to eq(1.0)
+      end
+    end
+  end
+
+  describe "#add_ownerships with workspace_path" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    let(:workspace_package_json) do
+      {
+        "lodash" => ":anchor_team",
+        "react" => ":anchor_team"
+      }
+    end
+
+    before do
+      allow(analyzer).to receive(:read_package_json_ownerships).with("/project/apps/anchor/package.json").and_return(workspace_package_json)
+      allow(analyzer).to receive(:add_transitive_ownerships)
+      allow(analyzer).to receive(:add_attention_needed)
+    end
+
+    it "should apply ownership from workspace package.json when workspace_path provided" do
+      parsed_results = {
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown"),
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown")
+      }
+
+      analyzer.send(:add_ownerships, parsed_results, "/project/apps/anchor")
+
+      expect(parsed_results["lodash"].owner).to eq(":anchor_team")
+      expect(parsed_results["react"].owner).to eq(":anchor_team")
+    end
+
+    it "should set owner_reason to ASSIGNED for workspace ownerships" do
+      parsed_results = {
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown")
+      }
+
+      analyzer.send(:add_ownerships, parsed_results, "/project/apps/anchor")
+
+      expect(parsed_results["lodash"].owner_reason).to eq(LibraryVersionAnalysis::Ownership::OWNER_REASON_ASSIGNED)
+    end
+
+    it "should not change owner for libraries not in workspace package.json" do
+      parsed_results = {
+        "unknown-lib" => LibraryVersionAnalysis::Versionline.new(owner: ":default")
+      }
+
+      analyzer.send(:add_ownerships, parsed_results, "/project/apps/anchor")
+
+      expect(parsed_results["unknown-lib"].owner).to eq(":default")
+    end
+  end
 end

@@ -153,13 +153,48 @@ module LibraryVersionAnalysis
       return meta_data, mode
     end
 
-    def go_pnpm(spreadsheet_id, repository, source)
+    def go_pnpm(spreadsheet_id, repository, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts "  pnpm" if LibraryVersionAnalysis.dev_output?
       pnpm = Pnpm.new(repository)
 
-      meta_data, mode = get_version_summary(pnpm, "PnpmVersionData!A:Q", spreadsheet_id, repository, source)
+      # Get results for ALL workspaces (or single repo)
+      results_by_workspace = pnpm.get_versions_for_all_workspaces
 
-      return meta_data, mode
+      all_modes = {}
+      first_meta_data = nil
+      first_mode = nil
+
+      # Upload each workspace separately
+      results_by_workspace.each do |workspace_source, data|
+        parsed_results = data[:results]
+        meta_data = data[:meta_data]
+        mode = get_mode_summary(parsed_results, meta_data)
+
+        # Store first workspace's data for backwards-compatible return value
+        if first_meta_data.nil?
+          first_meta_data = meta_data
+          first_mode = mode
+        end
+
+        all_modes[workspace_source] = mode
+
+        if @update_spreadsheet
+          puts "    updating spreadsheet #{workspace_source}" if LibraryVersionAnalysis.dev_output?
+          data = spreadsheet_data(parsed_results, repository, workspace_source)
+          update_spreadsheet(spreadsheet_id, "PnpmVersionData!A:Q", data)
+        end
+
+        if @update_server
+          puts "    updating server for #{workspace_source}" if LibraryVersionAnalysis.dev_output?
+          server_payload = server_data(parsed_results, repository, workspace_source)
+          log_server_payload(server_payload)
+          LibraryTracking.upload(server_payload.to_json)
+        end
+      end
+
+      puts "All Done! Uploaded #{results_by_workspace.keys.count} workspace(s)" if LibraryVersionAnalysis.dev_output?
+
+      return first_meta_data, first_mode
     end
 
     def get_version_summary(parser, range, spreadsheet_id, repository, source)
