@@ -49,6 +49,11 @@ module LibraryVersionAnalysis
     # used when building dependency graphs for upload
     def add_dependency_graph(parsed_results) # rubocop:disable Metrics/MethodLength
       results = run_pnpm_list
+      if results.nil?
+        warn "Skipping dependency graph: pnpm list failed"
+        return {}
+      end
+
       json = JSON.parse(results)
 
       @visited_nodes = []
@@ -425,6 +430,7 @@ module LibraryVersionAnalysis
         rescue JSON::ParserError
           warn "error while running pnpm list"
         end
+        return nil
       end
       results
     end

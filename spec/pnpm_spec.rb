@@ -268,6 +268,21 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result["c"]).not_to be_nil
       expect(result["d"]).not_to be_nil
     end
+
+    it "should gracefully handle pnpm list failure" do
+      parsed_results = { "a" => {}, "b" => {} }
+
+      analyzer = LibraryVersionAnalysis::Pnpm.new("test")
+      allow(analyzer).to receive(:run_pnpm_list).and_return(nil)
+
+      expect { analyzer.add_dependency_graph(parsed_results) }.not_to raise_error
+      result = analyzer.add_dependency_graph(parsed_results)
+
+      expect(result).to eq({})
+      # Verify parsed_results is unchanged (no dependency_graph added)
+      expect(parsed_results["a"]["dependency_graph"]).to be_nil
+      expect(parsed_results["b"]["dependency_graph"]).to be_nil
+    end
   end
 
   describe "#break_cycles" do
