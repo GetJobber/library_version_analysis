@@ -122,8 +122,11 @@ module LibraryVersionAnalysis
       all_libraries = {}
       cmd = "pnpm list --depth=Infinity --silent"
 
-      # ignore errors for this. It may fail, but we hopefully don't care
-      results, _captured_err, _status = Open3.capture3(cmd)
+      warn "[pnpm] add_all_libraries: Running '#{cmd}'"
+      results, stderr, status = Open3.capture3(cmd)
+      warn "[pnpm] add_all_libraries: exit_code=#{status.exitstatus}"
+      warn "[pnpm] add_all_libraries: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
+      warn "[pnpm] add_all_libraries: result_lines=#{results.lines.count}"
 
       results.each_line do |line|
         next if line.include?("UNMET OPTIONAL DEPENDENCY")
@@ -255,14 +258,18 @@ module LibraryVersionAnalysis
     def discover_workspaces
       # Use pnpm list to discover all workspaces
       cmd = "pnpm list -r --depth=-1 --json"
-      results, _captured_err, status = Open3.capture3(cmd)
+      warn "[pnpm] discover_workspaces: Running '#{cmd}'"
+      results, stderr, status = Open3.capture3(cmd)
+      warn "[pnpm] discover_workspaces: exit_code=#{status.exitstatus}"
+      warn "[pnpm] discover_workspaces: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
 
       return [] unless status.exitstatus.zero?
 
       json = JSON.parse(results)
       # pnpm returns an array of workspace packages
       json.is_a?(Array) ? json : [json]
-    rescue JSON::ParserError
+    rescue JSON::ParserError => e
+      warn "[pnpm] discover_workspaces: JSON parse error: #{e.message}"
       []
     end
 
@@ -326,7 +333,10 @@ module LibraryVersionAnalysis
 
     def run_pnpm_list_recursive
       cmd = "pnpm list -r --json --depth=0"
-      results, _captured_err, status = Open3.capture3(cmd)
+      warn "[pnpm] run_pnpm_list_recursive: Running '#{cmd}'"
+      results, stderr, status = Open3.capture3(cmd)
+      warn "[pnpm] run_pnpm_list_recursive: exit_code=#{status.exitstatus}"
+      warn "[pnpm] run_pnpm_list_recursive: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
 
       return nil unless status.exitstatus.zero?
 
@@ -421,18 +431,40 @@ module LibraryVersionAnalysis
 
     def run_pnpm_list
       cmd = "pnpm list --json --depth=Infinity --silent"
-      results, _, status = Open3.capture3(cmd)
+      log_pnpm_debug("run_pnpm_list", cmd) do
+        results, stderr, status = Open3.capture3(cmd)
+        log_pnpm_result("run_pnpm_list", cmd, status, results, stderr)
 
-      if status.exitstatus != 0
-        begin
-          parsed = JSON.parse(results)
-          warn "error while running pnpm list: #{parsed['error']}"
-        rescue JSON::ParserError
-          warn "error while running pnpm list"
+        if status.exitstatus != 0
+          begin
+            parsed = JSON.parse(results)
+            warn "[pnpm] error while running pnpm list: #{parsed['error']}"
+          rescue JSON::ParserError
+            warn "[pnpm] error while running pnpm list (non-JSON response)"
+          end
+          return nil
         end
-        return nil
+        results
       end
-      results
+    end
+
+    def log_pnpm_debug(method_name, cmd)
+      warn "[pnpm] #{method_name}: Running '#{cmd}'"
+      warn "[pnpm] #{method_name}: cwd=#{Dir.pwd}"
+      warn "[pnpm] #{method_name}: pnpm version=#{`pnpm --version 2>&1`.strip}"
+      yield
+    end
+
+    def log_pnpm_result(method_name, cmd, status, stdout, stderr)
+      warn "[pnpm] #{method_name}: exit_code=#{status.exitstatus}"
+      warn "[pnpm] #{method_name}: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
+      if stdout.nil? || stdout.strip.empty?
+        warn "[pnpm] #{method_name}: stdout=(empty)"
+      elsif stdout.length > 500
+        warn "[pnpm] #{method_name}: stdout (first 500 chars)=#{stdout[0..500]}"
+      else
+        warn "[pnpm] #{method_name}: stdout=#{stdout.strip}"
+      end
     end
   end
 end
