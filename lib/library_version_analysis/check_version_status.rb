@@ -174,7 +174,9 @@ module LibraryVersionAnalysis
 
       if @update_server
         puts "    updating server" if LibraryVersionAnalysis.dev_output?
-        data = server_data(parsed_results, repository, source).to_json
+        server_payload = server_data(parsed_results, repository, source)
+        log_server_payload(server_payload)
+        data = server_payload.to_json
         LibraryTracking.upload(data)
       end
 
@@ -360,6 +362,40 @@ module LibraryVersionAnalysis
 
     def print_summary(source, meta_data, mode_data)
       puts "#{source}: #{meta_data}, #{mode_data}" if LibraryVersionAnalysis.dev_output?
+    end
+
+    def log_server_payload(payload)
+      warn "[upload] Preparing to upload data for #{payload[:repository]}/#{payload[:source]}"
+      warn "[upload] Libraries: #{payload[:libraries]&.count || 0}"
+      warn "[upload] New versions: #{payload[:new_versions]&.count || 0}"
+      warn "[upload] Vulnerabilities: #{payload[:vulnerabilities]&.count || 0}"
+      warn "[upload] Dependencies: #{payload[:dependencies]&.count || 0}"
+
+      # Log sample of libraries (first 10)
+      if payload[:libraries]&.any?
+        warn "[upload] Sample libraries (first 10):"
+        payload[:libraries].first(10).each do |lib|
+          warn "[upload]   - #{lib[:name]} @ #{lib[:version]} (owner: #{lib[:owner]})"
+        end
+        warn "[upload]   ... and #{payload[:libraries].count - 10} more" if payload[:libraries].count > 10
+      end
+
+      # Log libraries with version updates
+      if payload[:new_versions]&.any?
+        outdated = payload[:new_versions].select { |v| v[:major]&.positive? }
+        warn "[upload] Libraries with major updates: #{outdated.count}"
+        outdated.first(5).each do |lib|
+          warn "[upload]   - #{lib[:name]}: #{lib[:major]} major, #{lib[:minor]} minor, #{lib[:patch]} patch behind"
+        end
+      end
+
+      # Log vulnerabilities
+      if payload[:vulnerabilities]&.any?
+        warn "[upload] Vulnerabilities found:"
+        payload[:vulnerabilities].first(10).each do |vuln|
+          warn "[upload]   - #{vuln[:library]}: #{vuln[:assigned_severity]} (#{vuln[:state]})"
+        end
+      end
     end
   end
 end
