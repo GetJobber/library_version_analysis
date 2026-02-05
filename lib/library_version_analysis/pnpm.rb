@@ -196,16 +196,11 @@ module LibraryVersionAnalysis
 
     def run_libyear_open3
       cmd = "pnpx libyear --package-manager pnpm --all --json"
-      results, captured_err, status = Open3.capture3(cmd)
+      results, _captured_err, status = Open3.capture3(cmd)
 
-      if status.exitstatus != 0
-        warn "pnpm status: #{status}"
-        warn "pnpm captured_err: #{captured_err}"
+      return nil if status.exitstatus != 0
 
-        return nil
-      end
-
-      return results
+      results
     end
 
     def add_all_libraries(workspace_path = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
@@ -216,11 +211,7 @@ module LibraryVersionAnalysis
               "pnpm list --depth=Infinity --silent"
             end
 
-      warn "[pnpm] add_all_libraries: Running '#{cmd}'"
-      results, stderr, status = Open3.capture3(cmd)
-      warn "[pnpm] add_all_libraries: exit_code=#{status.exitstatus}"
-      warn "[pnpm] add_all_libraries: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
-      warn "[pnpm] add_all_libraries: result_lines=#{results.lines.count}"
+      results, _stderr, _status = Open3.capture3(cmd)
 
       results.each_line do |line|
         next if line.include?("UNMET OPTIONAL DEPENDENCY")
@@ -368,18 +359,14 @@ module LibraryVersionAnalysis
     def discover_workspaces
       # Use pnpm list to discover all workspaces
       cmd = "pnpm list -r --depth=-1 --json"
-      warn "[pnpm] discover_workspaces: Running '#{cmd}'"
-      results, stderr, status = Open3.capture3(cmd)
-      warn "[pnpm] discover_workspaces: exit_code=#{status.exitstatus}"
-      warn "[pnpm] discover_workspaces: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
+      results, _stderr, status = Open3.capture3(cmd)
 
       return [] unless status.exitstatus.zero?
 
       json = JSON.parse(results)
       # pnpm returns an array of workspace packages
       json.is_a?(Array) ? json : [json]
-    rescue JSON::ParserError => e
-      warn "[pnpm] discover_workspaces: JSON parse error: #{e.message}"
+    rescue JSON::ParserError
       []
     end
 
@@ -443,10 +430,7 @@ module LibraryVersionAnalysis
 
     def run_pnpm_list_recursive
       cmd = "pnpm list -r --json --depth=0"
-      warn "[pnpm] run_pnpm_list_recursive: Running '#{cmd}'"
-      results, stderr, status = Open3.capture3(cmd)
-      warn "[pnpm] run_pnpm_list_recursive: exit_code=#{status.exitstatus}"
-      warn "[pnpm] run_pnpm_list_recursive: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
+      results, _stderr, status = Open3.capture3(cmd)
 
       return nil unless status.exitstatus.zero?
 
@@ -545,40 +529,12 @@ module LibraryVersionAnalysis
             else
               "pnpm list --json --depth=Infinity --silent"
             end
-      log_pnpm_debug("run_pnpm_list", cmd) do
-        results, stderr, status = Open3.capture3(cmd)
-        log_pnpm_result("run_pnpm_list", cmd, status, results, stderr)
 
-        if status.exitstatus != 0
-          begin
-            parsed = JSON.parse(results)
-            warn "[pnpm] error while running pnpm list: #{parsed['error']}"
-          rescue JSON::ParserError
-            warn "[pnpm] error while running pnpm list (non-JSON response)"
-          end
-          return nil
-        end
-        results
-      end
-    end
+      results, _stderr, status = Open3.capture3(cmd)
 
-    def log_pnpm_debug(method_name, cmd)
-      warn "[pnpm] #{method_name}: Running '#{cmd}'"
-      warn "[pnpm] #{method_name}: cwd=#{Dir.pwd}"
-      warn "[pnpm] #{method_name}: pnpm version=#{`pnpm --version 2>&1`.strip}"
-      yield
-    end
+      return nil if status.exitstatus != 0
 
-    def log_pnpm_result(method_name, cmd, status, stdout, stderr)
-      warn "[pnpm] #{method_name}: exit_code=#{status.exitstatus}"
-      warn "[pnpm] #{method_name}: stderr=#{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
-      if stdout.nil? || stdout.strip.empty?
-        warn "[pnpm] #{method_name}: stdout=(empty)"
-      elsif stdout.length > 500
-        warn "[pnpm] #{method_name}: stdout (first 500 chars)=#{stdout[0..500]}"
-      else
-        warn "[pnpm] #{method_name}: stdout=#{stdout.strip}"
-      end
+      results
     end
   end
 end
