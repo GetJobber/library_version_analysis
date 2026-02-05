@@ -52,7 +52,7 @@ module LibraryVersionAnalysis
 
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
-    def self.run(spreadsheet_id: "", repository: "", source: "")
+    def self.run(spreadsheet_id: "", repository: "", source: "", context: nil)
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN)
       keys += %w(LIBRARY_UPLOAD_URL UPLOAD_KEY) unless LibraryVersionAnalysis.dry_run?
@@ -61,7 +61,7 @@ module LibraryVersionAnalysis
       raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
 
       c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
+      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source, context: context)
 
       mode_key = "#{repository}/#{source}"
 
@@ -99,7 +99,7 @@ module LibraryVersionAnalysis
       return ":#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
     end
 
-    def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def go(spreadsheet_id:, repository:, source:, context: nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
 
       if spreadsheet_id.nil? || spreadsheet_id.empty?
         @update_server = true
@@ -119,7 +119,7 @@ module LibraryVersionAnalysis
       when "gemfile"
         meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
       when "pnpm"
-        meta_data, mode = go_pnpm(spreadsheet_id, repository, source)
+        meta_data, mode = go_pnpm(spreadsheet_id, repository, context)
       else
         puts "Don't recognize source #{source}"
         exit(-1)
@@ -158,19 +158,30 @@ module LibraryVersionAnalysis
       return meta_data, mode
     end
 
-    def go_pnpm(spreadsheet_id, repository, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def go_pnpm(spreadsheet_id, repository, context = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts "  pnpm" if LibraryVersionAnalysis.dev_output?
       pnpm = Pnpm.new(repository)
 
       # Get results for ALL workspaces (or single repo)
       results_by_workspace = pnpm.get_versions_for_all_workspaces
 
+      # Filter to specific workspace if context provided
+      if context
+        if results_by_workspace.key?(context)
+          results_by_workspace = { context => results_by_workspace[context] }
+        else
+          available = results_by_workspace.keys.join(", ")
+          puts "Workspace '#{context}' not found. Available workspaces: #{available}"
+          exit(-1)
+        end
+      end
+
       all_modes = {}
       first_meta_data = nil
       first_mode = nil
 
       # Upload each workspace separately
-      results_by_workspace.each do |workspace_source, data|
+      results_by_workspace.each do |workspace_name, data|
         parsed_results = data[:results]
         meta_data = data[:meta_data]
         mode = get_mode_summary(parsed_results, meta_data)
@@ -181,20 +192,20 @@ module LibraryVersionAnalysis
           first_mode = mode
         end
 
-        all_modes[workspace_source] = mode
+        all_modes[workspace_name] = mode
 
         if @update_spreadsheet
-          puts "    updating spreadsheet #{workspace_source}" if LibraryVersionAnalysis.dev_output?
-          data = spreadsheet_data(parsed_results, repository, workspace_source)
+          puts "    updating spreadsheet #{workspace_name}" if LibraryVersionAnalysis.dev_output?
+          data = spreadsheet_data(parsed_results, repository, workspace_name)
           update_spreadsheet(spreadsheet_id, "PnpmVersionData!A:Q", data)
         end
 
         if @update_server
-          puts "    updating server for #{workspace_source}" if LibraryVersionAnalysis.dev_output?
-          server_payload = server_data(parsed_results, repository, workspace_source)
+          puts "    updating server for #{workspace_name}" if LibraryVersionAnalysis.dev_output?
+          server_payload = server_data(parsed_results, repository, "pnpm", workspace_name)
           log_server_payload(server_payload)
           if LibraryVersionAnalysis.dry_run?
-            warn "[DRY_RUN] Skipping upload for #{workspace_source}"
+            warn "[DRY_RUN] Skipping upload for #{workspace_name}"
           else
             LibraryTracking.upload(server_payload.to_json)
           end
@@ -238,7 +249,7 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
-    def server_data(results, repository, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def server_data(results, repository, source, package = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       libraries = []
       new_versions = []
       vulns = []
@@ -267,7 +278,7 @@ module LibraryVersionAnalysis
         end
       end
 
-      {
+      payload = {
         source: source.downcase,
         repository: repository,
         libraries: libraries,
@@ -275,6 +286,11 @@ module LibraryVersionAnalysis
         vulnerabilities: vulns,
         dependencies: dependencies,
       }
+
+      # Add package field for pnpm workspaces
+      payload[:package] = package if package
+
+      payload
     end
 
     def obfuscate_dependency_graph(dependency_graph)
