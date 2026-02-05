@@ -14,6 +14,13 @@ module LibraryVersionAnalysis
     def get_versions_for_all_workspaces # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       workspaces = discover_workspaces
 
+      # Handle case where pnpm list returns nothing (e.g., not a pnpm project)
+      if workspaces.empty?
+        warn "No pnpm workspaces discovered via 'pnpm list'."
+        warn "Falling back to discovering workspaces from libyear_*.txt files."
+        return get_versions_from_libyear_files
+      end
+
       if single_package_repo?(workspaces)
         # Backwards compatible: non-workspace repos use "pnpm"
         parsed_results, meta_data = get_versions("pnpm")
@@ -37,6 +44,58 @@ module LibraryVersionAnalysis
     # Check if this is a non-workspace repo (only root package, no workspaces)
     def single_package_repo?(workspaces)
       workspaces.length == 1 && workspaces[0]["path"] == Dir.pwd
+    end
+
+    # Fallback: discover workspaces from libyear_*.txt files when pnpm list doesn't work
+    def get_versions_from_libyear_files # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      libyear_files = Dir.glob("libyear_*.txt")
+
+      if libyear_files.empty?
+        warn "No libyear_*.txt files found. Cannot proceed."
+        exit(-1)
+      end
+
+      results_by_workspace = {}
+      libyear_files.each do |filename|
+        workspace_source = source_name_from_libyear_filename(filename)
+        puts("\tPNPM analyzing workspace from file: #{workspace_source} (#{filename})") if LibraryVersionAnalysis.dev_output?
+
+        # Read and parse libyear data
+        libyear_results = read_file(filename, true)
+        if libyear_results.nil?
+          warn "Running libyear for #{workspace_source} produced no results. Exiting"
+          exit(-1)
+        end
+
+        # For file-based discovery, we can't get pnpm list data, so use empty library set
+        all_libraries = {}
+        parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
+
+        # Skip dependabot findings, dependency graph, and ownerships when running in file-fallback mode
+        # (we don't have access to the actual pnpm project structure or GitHub repo)
+        puts("\tPNPM [#{workspace_source}] skipping dependabot/graph/ownerships in file-fallback mode") if LibraryVersionAnalysis.dev_output?
+
+        results_by_workspace[workspace_source] = { results: parsed_results, meta_data: meta_data }
+      end
+
+      results_by_workspace
+    end
+
+    # Convert libyear filename back to source name
+    # "libyear_report.txt" -> "pnpm"
+    # "libyear_root.txt" -> "root"
+    # "libyear_apps_anchor.txt" -> "apps/anchor"
+    def source_name_from_libyear_filename(filename)
+      basename = File.basename(filename, ".txt")
+
+      case basename
+      when "libyear_report"
+        "pnpm"
+      else
+        # "libyear_root" -> "root"
+        # "libyear_apps_anchor" -> "apps/anchor"
+        basename.sub(/^libyear_/, "").gsub("_", "/")
+      end
     end
 
     # Convert workspace path to a meaningful source name

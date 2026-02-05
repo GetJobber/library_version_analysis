@@ -77,7 +77,12 @@ module LibraryVersionAnalysis
           result_key = mode_key
       end
 
-      results = {result_key =>  c.mode_results_specific(mode_results, mode_key.to_sym)}
+      # For pnpm, mode_results contains all_modes hash with each workspace's metrics
+      if source == "pnpm"
+        results = { result_key => c.pnpm_results_all_workspaces(mode_results, mode_key.to_sym) }
+      else
+        results = { result_key => c.mode_results_specific(mode_results, mode_key.to_sym) }
+      end
       return results
     end
 
@@ -177,8 +182,7 @@ module LibraryVersionAnalysis
       end
 
       all_modes = {}
-      first_meta_data = nil
-      first_mode = nil
+      combined_meta_data = nil
 
       # Upload each workspace separately
       results_by_workspace.each do |workspace_name, data|
@@ -186,11 +190,8 @@ module LibraryVersionAnalysis
         meta_data = data[:meta_data]
         mode = get_mode_summary(parsed_results, meta_data)
 
-        # Store first workspace's data for backwards-compatible return value
-        if first_meta_data.nil?
-          first_meta_data = meta_data
-          first_mode = mode
-        end
+        # Store first workspace's meta_data for print_summary (backwards compatible)
+        combined_meta_data ||= meta_data
 
         all_modes[workspace_name] = mode
 
@@ -214,7 +215,8 @@ module LibraryVersionAnalysis
 
       puts "All Done! Uploaded #{results_by_workspace.keys.count} workspace(s)" if LibraryVersionAnalysis.dev_output?
 
-      return first_meta_data, first_mode
+      # Return all_modes hash for pnpm (contains all workspace metrics)
+      return combined_meta_data, all_modes
     end
 
     def get_version_summary(parser, range, spreadsheet_id, repository, source)
@@ -422,6 +424,25 @@ module LibraryVersionAnalysis
         unowned_issues: mode_results.dig(source, :unowned_issues),
         one_number: mode_results.dig(source, :one_number),
       }
+    end
+
+    # Format pnpm results with all workspaces included
+    def pnpm_results_all_workspaces(mode_results, source)
+      all_modes = mode_results[source]
+      return {} if all_modes.nil?
+
+      result = {}
+      all_modes.each do |workspace_name, mode|
+        result[workspace_name] = {
+          one_major: mode[:one_major],
+          two_major: mode[:two_major],
+          three_plus_major: mode[:three_plus_major],
+          minor: mode[:minor],
+          unowned_issues: mode[:unowned_issues],
+          one_number: mode[:one_number],
+        }
+      end
+      result
     end
 
     def print_summary(source, meta_data, mode_data)
