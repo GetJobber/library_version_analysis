@@ -203,7 +203,8 @@ module LibraryVersionAnalysis
 
         if @update_server
           puts "    updating server for #{workspace_name}" if LibraryVersionAnalysis.dev_output?
-          server_payload = server_data(parsed_results, repository, "pnpm", workspace_name)
+          # Use workspace_name as the source for pnpm workspaces
+          server_payload = server_data(parsed_results, repository, workspace_name)
           log_server_payload(server_payload)
           if LibraryVersionAnalysis.dry_run?
             warn "[DRY_RUN] Skipping upload for #{workspace_name}"
@@ -251,7 +252,7 @@ module LibraryVersionAnalysis
       return mode_summary.three_plus_major * 50 + mode_summary.two_major * 20 + mode_summary.one_major * 10 + mode_summary.minor + mode_summary.patch * 0.5
     end
 
-    def server_data(results, repository, source, package = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def server_data(results, repository, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       libraries = []
       new_versions = []
       vulns = []
@@ -280,7 +281,7 @@ module LibraryVersionAnalysis
         end
       end
 
-      payload = {
+      {
         source: source.downcase,
         repository: repository,
         libraries: libraries,
@@ -288,11 +289,6 @@ module LibraryVersionAnalysis
         vulnerabilities: vulns,
         dependencies: dependencies,
       }
-
-      # Add package field for pnpm workspaces
-      payload[:package] = package if package
-
-      payload
     end
 
     def obfuscate_dependency_graph(dependency_graph)
