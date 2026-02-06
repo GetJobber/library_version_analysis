@@ -97,16 +97,16 @@ library_version_analysis/run.sh
 
 ## CI Pipeline Requirements for pnpm Workspaces
 
-For pnpm workspace repositories (monorepos), the CI pipeline must generate per-workspace libyear files before running the analysis. Each workspace gets its own libyear file with an underscore-based naming convention.
+For pnpm workspace repositories (monorepos), the CI pipeline must generate per-workspace libyear files before running the analysis. Each workspace gets its own libyear file with a hyphen-based naming convention.
 
 ### File Naming Convention
 
 | Workspace Path | Libyear Filename |
 |---------------|------------------|
 | Root (.) | `libyear_root.txt` |
-| apps/client | `libyear_apps_client.txt` |
-| apps/server | `libyear_apps_server.txt` |
-| packages/ui | `libyear_packages_ui.txt` |
+| apps/client | `libyear_apps-client.txt` |
+| apps/server | `libyear_apps-server.txt` |
+| packages/ui | `libyear_packages-ui.txt` |
 | Non-workspace repo | `libyear_report.txt` |
 
 ### Example CI Script
@@ -121,7 +121,7 @@ pnpx libyear --package-manager pnpm --json > libyear_root.txt
 # Each workspace (skip root at index 0)
 for workspace in $(pnpm list -r --depth=-1 --json | jq -r '.[1:] | .[].path'); do
   relative_path="${workspace#$(pwd)/}"
-  filename="libyear_${relative_path//\//_}.txt"
+  filename="libyear_${relative_path//\//-}.txt"
   pnpx libyear --package-manager pnpm --json --cwd "$workspace" > "$filename" || true
 done
 ```
@@ -137,7 +137,7 @@ done
     # Each workspace (skip root at index 0)
     for workspace in $(pnpm list -r --depth=-1 --json | jq -r '.[1:] | .[].path'); do
       relative_path="${workspace#$(pwd)/}"
-      filename="libyear_${relative_path//\//_}.txt"
+      filename="libyear_${relative_path//\//-}.txt"
       pnpx libyear --package-manager pnpm --json --cwd "$workspace" > "$filename" || true
     done
 

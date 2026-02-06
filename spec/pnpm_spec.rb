@@ -553,12 +553,12 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(analyzer.send(:libyear_filename_for_source, "root")).to eq("libyear_root.txt")
     end
 
-    it "should convert slashes to underscores for nested paths" do
-      expect(analyzer.send(:libyear_filename_for_source, "apps/anchor")).to eq("libyear_apps_anchor.txt")
+    it "should convert slashes to hyphens for nested paths" do
+      expect(analyzer.send(:libyear_filename_for_source, "apps/anchor")).to eq("libyear_apps-anchor.txt")
     end
 
     it "should handle deeply nested paths" do
-      expect(analyzer.send(:libyear_filename_for_source, "packages/ui/components")).to eq("libyear_packages_ui_components.txt")
+      expect(analyzer.send(:libyear_filename_for_source, "packages/ui/components")).to eq("libyear_packages-ui-components.txt")
     end
   end
 

@@ -49,9 +49,10 @@ RSpec.describe LibraryVersionAnalysis::Npm do
       analyzer = LibraryVersionAnalysis::Npm.new("test")
       allow(analyzer).to receive(:read_file).with("libyear_report.txt", true).and_return(npxfile)
       allow(analyzer).to receive(:read_file).with("package.json", false).and_return(packagefile)
-      allow(analyzer).to receive(:run_npm_list).and_return(npmlist)
+      allow(analyzer).to receive(:run_npm_list).and_return(npm_list_json)
       allow(analyzer).to receive(:add_dependabot_findings).and_return(nil) # TODO: will need to retest this
       allow(analyzer).to receive(:add_ownership_from_transitive).and_return(nil)
+      allow(Open3).to receive(:capture3).with("npm list --all --silent").and_return([npmlist, "", Status.new(0)])
 
       analyzer.get_versions("test")
     end
@@ -70,6 +71,24 @@ RSpec.describe LibraryVersionAnalysis::Npm do
         │ ├─┬ graphql-tag@2.12.4
         │ │ └── tslib@2.2.0
       DOC
+    end
+
+    let(:npm_list_json) do
+      <<~JSON
+        {
+          "dependencies": {
+            "@apollo/client": {
+              "dependencies": {
+                "@wry/context": {
+                  "dependencies": {
+                    "@babel/polyfill": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      JSON
     end
 
     before(:each) do

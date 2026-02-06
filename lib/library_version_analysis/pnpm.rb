@@ -84,7 +84,7 @@ module LibraryVersionAnalysis
     # Convert libyear filename back to source name
     # "libyear_report.txt" -> "pnpm"
     # "libyear_root.txt" -> "root"
-  # "libyear_apps-anchor.txt" -> "apps/anchor"
+    # "libyear_apps-anchor.txt" -> "apps/anchor"
     def source_name_from_libyear_filename(filename)
       basename = File.basename(filename, ".txt")
 
@@ -94,7 +94,7 @@ module LibraryVersionAnalysis
       else
         # "libyear_root" -> "root"
         # "libyear_apps-anchor" -> "apps/anchor"
-        basename.sub(/^libyear_/, "").gsub("_", "/")
+        basename.sub(/^libyear_/, "").gsub("-", "/")
       end
     end
 
@@ -232,7 +232,7 @@ module LibraryVersionAnalysis
     # Convert source name to libyear filename
     # "pnpm" -> "libyear_report.txt" (backwards compatible for non-workspace repos)
     # "root" -> "libyear_root.txt"
-    # "apps/anchor" -> "libyear_apps_anchor.txt"
+    # "apps/anchor" -> "libyear_apps-anchor.txt"
     def libyear_filename_for_source(source)
       case source
       when "pnpm"
