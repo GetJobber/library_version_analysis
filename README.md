@@ -109,23 +109,6 @@ For pnpm workspace repositories (monorepos), the CI pipeline must generate per-w
 | packages/ui | `libyear_packages-ui.txt` |
 | Non-workspace repo | `libyear_report.txt` |
 
-### Example CI Script
-
-```bash
-#!/bin/bash
-# Generate libyear reports for each workspace
-
-# Root workspace
-pnpx libyear --package-manager pnpm --json > libyear_root.txt
-
-# Each workspace (skip root at index 0)
-for workspace in $(pnpm list -r --depth=-1 --json | jq -r '.[1:] | .[].path'); do
-  relative_path="${workspace#$(pwd)/}"
-  filename="libyear_${relative_path//\//-}.txt"
-  pnpx libyear --package-manager pnpm --json --cwd "$workspace" > "$filename" || true
-done
-```
-
 ### Example CI Configuration (CircleCI/GitHub Actions)
 
 ```yaml
