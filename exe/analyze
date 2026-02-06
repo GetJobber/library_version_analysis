@@ -23,8 +23,7 @@ else
   puts "Usage: analyze <repository> <source> [context]"
   puts "  Examples:"
   puts "    analyze my-repo pnpm                    # analyze all pnpm workspaces"
-  puts "    analyze my-repo pnpm root               # analyze only root workspace"
-  puts "    analyze my-repo pnpm apps/jobber-online # analyze specific workspace"
+  puts "    analyze my-repo pnpm packages/ui       # analyze specific workspace"
 
   Kernel.exit(1)
 end

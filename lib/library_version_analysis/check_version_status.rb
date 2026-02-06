@@ -44,18 +44,13 @@ module LibraryVersionAnalysis
     ENV["DEV_OUTPUT"]&.downcase == "true"
   end
 
-  def self.dry_run?
-    ENV["DRY_RUN"]&.downcase == "true"
-  end
-
   OBFUSCATE_WORDS = false # This is to ensure we don't store actual spicy data except in secure prod DB
 
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
     def self.run(spreadsheet_id: "", repository: "", source: "", context: nil)
       # check for env vars before we do anything
-      keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN)
-      keys += %w(LIBRARY_UPLOAD_URL UPLOAD_KEY) unless LibraryVersionAnalysis.dry_run?
+      keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
       missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
 
       raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
@@ -206,11 +201,7 @@ module LibraryVersionAnalysis
           # Use workspace_name as the source for pnpm workspaces
           server_payload = server_data(parsed_results, repository, workspace_name)
           log_server_payload(server_payload)
-          if LibraryVersionAnalysis.dry_run?
-            warn "[DRY_RUN] Skipping upload for #{workspace_name}"
-          else
-            LibraryTracking.upload(server_payload.to_json)
-          end
+          LibraryTracking.upload(server_payload.to_json)
         end
       end
 
@@ -234,12 +225,8 @@ module LibraryVersionAnalysis
         puts "    updating server" if LibraryVersionAnalysis.dev_output?
         server_payload = server_data(parsed_results, repository, source)
         log_server_payload(server_payload)
-        if LibraryVersionAnalysis.dry_run?
-          warn "[DRY_RUN] Skipping upload for #{source}"
-        else
-          data = server_payload.to_json
-          LibraryTracking.upload(data)
-        end
+        data = server_payload.to_json
+        LibraryTracking.upload(data)
       end
 
       puts "All Done!" if LibraryVersionAnalysis.dev_output?
@@ -313,9 +300,11 @@ module LibraryVersionAnalysis
           legacy_source= "MOBILE"
         end
       when "gemfile"
-        legacy_source= "ONLINE"
+        legacy_source = "ONLINE"
+      when "pnpm", "root", /^apps\//, /^packages\//
+        legacy_source = source
       else
-        legacy_source= "UNKNOWN"
+        legacy_source = "UNKNOWN"
       end
 
       data << ["Updated: #{Time.now.utc}"]

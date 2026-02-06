@@ -84,7 +84,7 @@ module LibraryVersionAnalysis
     # Convert libyear filename back to source name
     # "libyear_report.txt" -> "pnpm"
     # "libyear_root.txt" -> "root"
-    # "libyear_apps_anchor.txt" -> "apps/anchor"
+  # "libyear_apps-anchor.txt" -> "apps/anchor"
     def source_name_from_libyear_filename(filename)
       basename = File.basename(filename, ".txt")
 
@@ -93,7 +93,7 @@ module LibraryVersionAnalysis
         "pnpm"
       else
         # "libyear_root" -> "root"
-        # "libyear_apps_anchor" -> "apps/anchor"
+        # "libyear_apps-anchor" -> "apps/anchor"
         basename.sub(/^libyear_/, "").gsub("_", "/")
       end
     end
@@ -122,7 +122,7 @@ module LibraryVersionAnalysis
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
 
       puts("\tPNPM [#{source}] dependabot") if LibraryVersionAnalysis.dev_output?
-      add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
+      add_dependabot_findings(parsed_results, meta_data, @github_repo, "pnpm")
 
       puts("\tPNPM [#{source}] building dependency graph") if LibraryVersionAnalysis.dev_output?
       add_dependency_graph(parsed_results, workspace_path)
@@ -238,7 +238,7 @@ module LibraryVersionAnalysis
       when "pnpm"
         "libyear_report.txt"
       else
-        "libyear_#{source.gsub('/', '_')}.txt"
+        "libyear_#{source.gsub('/', '-')}.txt"
       end
     end
 

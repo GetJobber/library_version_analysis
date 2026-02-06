@@ -1,5 +1,6 @@
 require "library_version_analysis/github"
 require "date"
+require "ostruct"
 
 RSpec.describe LibraryVersionAnalysis::Github do
   let(:mock_alert_node) do
@@ -109,6 +110,10 @@ RSpec.describe LibraryVersionAnalysis::Github do
       subject.get_dependabot_findings(parsed_results, meta_data, "test-repo", "npm")
       expect(meta_data.total_cvss).to eq(1)
     end
+
+    it "maps pnpm to NPM ecosystem (pnpm uses npm registry)" do
+      expect(described_class::SOURCES[:pnpm]).to eq("NPM")
+    end
   end
 
   describe "#get_closed_findings" do
@@ -130,6 +135,12 @@ RSpec.describe LibraryVersionAnalysis::Github do
       expect_any_instance_of(described_class).to receive(:find_alerts)
         .with("test-repo", false, "NPM")
       subject.get_closed_findings(parsed_results, "test-repo", "npm")
+    end
+
+    it "maps pnpm to NPM ecosystem for find_alerts" do
+      expect_any_instance_of(described_class).to receive(:find_alerts)
+        .with("test-repo", false, "NPM")
+      subject.get_closed_findings(parsed_results, "test-repo", "pnpm")
     end
   end
 

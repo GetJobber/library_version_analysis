@@ -22,7 +22,37 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+```bash
+analyze <repository> <source> [context]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `repository` | The repository name (e.g., `jobber`) |
+| `source` | The package manager: `gemfile`, `npm`, or `pnpm` |
+| `context` | *(Optional, pnpm only)* A specific pnpm workspace to analyze |
+
+### Examples
+
+```bash
+# Analyze all gems
+analyze my-repo gemfile
+
+# Analyze all npm packages
+analyze my-repo npm
+
+# Analyze all pnpm workspaces
+analyze my-repo pnpm
+
+# Analyze a specific pnpm workspace
+analyze my-repo pnpm packages/ui
+```
+
+### The `context` parameter
+
+When using the `pnpm` source, the tool analyzes all workspaces by default. The optional `context` argument filters analysis to a single workspace by name. If the provided workspace name doesn't match any discovered workspace, the tool prints the available workspaces and exits.
+
+This parameter is ignored for `gemfile` and `npm` sources.
 
 ## Development
 
