@@ -380,7 +380,7 @@ module LibraryVersionAnalysis
           mode_summary.patch = mode_summary.patch + 1
         end
 
-        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if line.owner == :attention_needed
+        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if line.owner == :attention_needed || line.owner == :unspecified
       end
 
       mode_summary.one_number = one_number(mode_summary)

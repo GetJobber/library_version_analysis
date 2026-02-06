@@ -75,6 +75,9 @@ RSpec.describe LibraryVersionAnalysis::Gemfile do
 
     before(:each) do
       allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(true)
+      allow(LibraryVersionAnalysis::Configuration).to receive(:get).and_call_original
+      allow(LibraryVersionAnalysis::Configuration).to receive(:get).with(:special_case_ownerships)
+        .and_return("actioncable" => { "owner" => ":api_platform", "parent" => nil })
     end
 
     it "should get expected data for owned gem" do
