@@ -136,6 +136,38 @@ For non-workspace pnpm repositories (single package.json), continue using the ex
 pnpx libyear --package-manager pnpm --all --json > libyear_report.txt
 ```
 
+## Library Tracking Server Integration
+
+This gem uploads per-workspace data to the [library_tracking](https://github.com/GetJobber/library_tracking) Rails app via `POST /api/libraries/upload`.
+
+### Upload Payload
+
+For each pnpm workspace, the gem sends a separate upload with:
+
+```json
+{
+  "source": "<workspace_name>",
+  "repository": "<repository>",
+  "libraries": [...],
+  "new_versions": [...],
+  "vulnerabilities": [...],
+  "dependencies": [...]
+}
+```
+
+| Field | Value | Example |
+|-------|-------|---------|
+| `repository` | The first CLI argument, passed through | `"jobber-frontend"` |
+| `source` | The workspace name (root workspace becomes `"root"`, nested workspaces use their relative path) | `"root"`, `"packages/ui"` |
+
+For non-workspace pnpm repos, `source` is `"pnpm"`. For other package managers, `source` matches the CLI argument (`"gemfile"`, `"npm"`).
+
+### Database Disambiguation
+
+The library_tracking database uniquely identifies a library by the composite index `(name, source, repository_id)`. This means the same library (e.g., `react`) can exist independently in multiple workspaces within the same repository, each tracked with its own version history, vulnerabilities, and dependency graph.
+
+> **Note:** The [DB diagram](https://dbdiagram.io/d/versions-63dfe88e296d97641d7e9064) is outdated and does not show the `source` column on the `libraries` table. Refer to `db/schema.rb` in the [library_tracking repo](https://github.com/GetJobber/library_tracking) for the current schema.
+
 ## Contributing
 
 Not supported
