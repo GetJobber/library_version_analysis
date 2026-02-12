@@ -22,7 +22,37 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+```bash
+analyze <repository> <source> [context]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `repository` | The repository name (e.g., `jobber`) |
+| `source` | The package manager: `gemfile`, `npm`, or `pnpm` |
+| `context` | *(Optional, pnpm only)* A specific pnpm workspace to analyze |
+
+### Examples
+
+```bash
+# Analyze all gems
+analyze my-repo gemfile
+
+# Analyze all npm packages
+analyze my-repo npm
+
+# Analyze all pnpm workspaces
+analyze my-repo pnpm
+
+# Analyze a specific pnpm workspace
+analyze my-repo pnpm packages/ui
+```
+
+### The `context` parameter
+
+When using the `pnpm` source, the tool analyzes all workspaces by default. The optional `context` argument filters analysis to a single workspace by name. If the provided workspace name doesn't match any discovered workspace, the tool prints the available workspaces and exits.
+
+This parameter is ignored for `gemfile` and `npm` sources.
 
 ## Development
 
@@ -65,6 +95,78 @@ ln -s ../library_version_analysis .
 source library_version_anaysis/version.sh
 library_version_analysis/run.sh
 
+## CI Pipeline Requirements for pnpm Workspaces
+
+For pnpm workspace repositories (monorepos), the CI pipeline must generate per-workspace libyear files before running the analysis. Each workspace gets its own libyear file with a hyphen-based naming convention.
+
+### File Naming Convention
+
+| Workspace Path | Libyear Filename |
+|---------------|------------------|
+| Root (.) | `libyear_root.txt` |
+| apps/client | `libyear_apps-client.txt` |
+| apps/server | `libyear_apps-server.txt` |
+| packages/ui | `libyear_packages-ui.txt` |
+| Non-workspace repo | `libyear_report.txt` |
+
+### Example CI Configuration (CircleCI/GitHub Actions)
+
+```yaml
+- name: Generate libyear reports
+  run: |
+    # Root workspace
+    pnpx libyear --package-manager pnpm --json > libyear_root.txt
+    
+    # Each workspace (skip root at index 0)
+    for workspace in $(pnpm list -r --depth=-1 --json | jq -r '.[1:] | .[].path'); do
+      relative_path="${workspace#$(pwd)/}"
+      filename="libyear_${relative_path//\//-}.txt"
+      pnpx libyear --package-manager pnpm --json --cwd "$workspace" > "$filename" || true
+    done
+
+- name: Run library analysis
+  run: ./exe/analyze $REPO_NAME pnpm
+```
+
+### Non-workspace Repositories
+
+For non-workspace pnpm repositories (single package.json), continue using the existing single file approach:
+
+```bash
+pnpx libyear --package-manager pnpm --all --json > libyear_report.txt
+```
+
+## Library Tracking Server Integration
+
+This gem uploads per-workspace data to the [library_tracking](https://github.com/GetJobber/library_tracking) Rails app via `POST /api/libraries/upload`.
+
+### Upload Payload
+
+For each pnpm workspace, the gem sends a separate upload with:
+
+```json
+{
+  "source": "<workspace_name>",
+  "repository": "<repository>",
+  "libraries": [...],
+  "new_versions": [...],
+  "vulnerabilities": [...],
+  "dependencies": [...]
+}
+```
+
+| Field | Value | Example |
+|-------|-------|---------|
+| `repository` | The first CLI argument, passed through | `"jobber-frontend"` |
+| `source` | The workspace name (root workspace becomes `"root"`, nested workspaces use their relative path) | `"root"`, `"packages/ui"` |
+
+For non-workspace pnpm repos, `source` is `"pnpm"`. For other package managers, `source` matches the CLI argument (`"gemfile"`, `"npm"`).
+
+### Database Disambiguation
+
+The library_tracking database uniquely identifies a library by the composite index `(name, source, repository_id)`. This means the same library (e.g., `react`) can exist independently in multiple workspaces within the same repository, each tracked with its own version history, vulnerabilities, and dependency graph.
+
+> **Note:** The [DB diagram](https://dbdiagram.io/d/versions-63dfe88e296d97641d7e9064) is outdated and does not show the `source` column on the `libraries` table. Refer to `db/schema.rb` in the [library_tracking repo](https://github.com/GetJobber/library_tracking) for the current schema.
 
 ## Contributing
 

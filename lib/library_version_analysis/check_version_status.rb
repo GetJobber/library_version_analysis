@@ -48,7 +48,7 @@ module LibraryVersionAnalysis
 
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
-    def self.run(spreadsheet_id: "", repository: "", source: "")
+    def self.run(spreadsheet_id: "", repository: "", source: "", context: nil)
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
       missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
@@ -56,7 +56,7 @@ module LibraryVersionAnalysis
       raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
 
       c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source)
+      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source, context: context)
 
       mode_key = "#{repository}/#{source}"
 
@@ -72,7 +72,12 @@ module LibraryVersionAnalysis
           result_key = mode_key
       end
 
-      results = {result_key =>  c.mode_results_specific(mode_results, mode_key.to_sym)}
+      # For pnpm, mode_results contains all_modes hash with each workspace's metrics
+      if source == "pnpm"
+        results = { result_key => c.pnpm_results_all_workspaces(mode_results, mode_key.to_sym) }
+      else
+        results = { result_key => c.mode_results_specific(mode_results, mode_key.to_sym) }
+      end
       return results
     end
 
@@ -94,7 +99,7 @@ module LibraryVersionAnalysis
       return ":#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
     end
 
-    def go(spreadsheet_id:, repository:, source:) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def go(spreadsheet_id:, repository:, source:, context: nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
 
       if spreadsheet_id.nil? || spreadsheet_id.empty?
         @update_server = true
@@ -113,6 +118,8 @@ module LibraryVersionAnalysis
         meta_data, mode = go_npm(spreadsheet_id, repository, source)
       when "gemfile"
         meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
+      when "pnpm"
+        meta_data, mode = go_pnpm(spreadsheet_id, repository, context)
       else
         puts "Don't recognize source #{source}"
         exit(-1)
@@ -151,6 +158,59 @@ module LibraryVersionAnalysis
       return meta_data, mode
     end
 
+    def go_pnpm(spreadsheet_id, repository, context = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      puts "  pnpm" if LibraryVersionAnalysis.dev_output?
+      pnpm = Pnpm.new(repository)
+
+      # Get results for ALL workspaces (or single repo)
+      results_by_workspace = pnpm.get_versions_for_all_workspaces
+
+      # Filter to specific workspace if context provided
+      if context
+        if results_by_workspace.key?(context)
+          results_by_workspace = { context => results_by_workspace[context] }
+        else
+          available = results_by_workspace.keys.join(", ")
+          puts "Workspace '#{context}' not found. Available workspaces: #{available}"
+          exit(-1)
+        end
+      end
+
+      all_modes = {}
+      combined_meta_data = nil
+
+      # Upload each workspace separately
+      results_by_workspace.each do |workspace_name, data|
+        parsed_results = data[:results]
+        meta_data = data[:meta_data]
+        mode = get_mode_summary(parsed_results, meta_data)
+
+        # Store first workspace's meta_data for print_summary (backwards compatible)
+        combined_meta_data ||= meta_data
+
+        all_modes[workspace_name] = mode
+
+        if @update_spreadsheet
+          puts "    updating spreadsheet #{workspace_name}" if LibraryVersionAnalysis.dev_output?
+          data = spreadsheet_data(parsed_results, repository, workspace_name)
+          update_spreadsheet(spreadsheet_id, "PnpmVersionData!A:Q", data)
+        end
+
+        if @update_server
+          puts "    updating server for #{workspace_name}" if LibraryVersionAnalysis.dev_output?
+          # Use workspace_name as the source for pnpm workspaces
+          server_payload = server_data(parsed_results, repository, workspace_name)
+          log_server_payload(server_payload)
+          LibraryTracking.upload(server_payload.to_json)
+        end
+      end
+
+      puts "All Done! Uploaded #{results_by_workspace.keys.count} workspace(s)" if LibraryVersionAnalysis.dev_output?
+
+      # Return all_modes hash for pnpm (contains all workspace metrics)
+      return combined_meta_data, all_modes
+    end
+
     def get_version_summary(parser, range, spreadsheet_id, repository, source)
       parsed_results, meta_data = parser.get_versions(source)
       mode = get_mode_summary(parsed_results, meta_data)
@@ -163,7 +223,9 @@ module LibraryVersionAnalysis
 
       if @update_server
         puts "    updating server" if LibraryVersionAnalysis.dev_output?
-        data = server_data(parsed_results, repository, source).to_json
+        server_payload = server_data(parsed_results, repository, source)
+        log_server_payload(server_payload)
+        data = server_payload.to_json
         LibraryTracking.upload(data)
       end
 
@@ -238,9 +300,11 @@ module LibraryVersionAnalysis
           legacy_source= "MOBILE"
         end
       when "gemfile"
-        legacy_source= "ONLINE"
+        legacy_source = "ONLINE"
+      when "pnpm", "root", /^apps\//, /^packages\//
+        legacy_source = source
       else
-        legacy_source= "UNKNOWN"
+        legacy_source = "UNKNOWN"
       end
 
       data << ["Updated: #{Time.now.utc}"]
@@ -316,7 +380,7 @@ module LibraryVersionAnalysis
           mode_summary.patch = mode_summary.patch + 1
         end
 
-        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if line.owner == :attention_needed
+        mode_summary.unowned_issues = mode_summary.unowned_issues + 1 if line.owner == :attention_needed || line.owner == :unspecified
       end
 
       mode_summary.one_number = one_number(mode_summary)
@@ -347,8 +411,61 @@ module LibraryVersionAnalysis
       }
     end
 
+    # Format pnpm results with all workspaces included
+    def pnpm_results_all_workspaces(mode_results, source)
+      all_modes = mode_results[source]
+      return {} if all_modes.nil?
+
+      result = {}
+      all_modes.each do |workspace_name, mode|
+        result[workspace_name] = {
+          one_major: mode[:one_major],
+          two_major: mode[:two_major],
+          three_plus_major: mode[:three_plus_major],
+          minor: mode[:minor],
+          unowned_issues: mode[:unowned_issues],
+          one_number: mode[:one_number],
+        }
+      end
+      result
+    end
+
     def print_summary(source, meta_data, mode_data)
       puts "#{source}: #{meta_data}, #{mode_data}" if LibraryVersionAnalysis.dev_output?
+    end
+
+    def log_server_payload(payload)
+      warn "[upload] Preparing to upload data for #{payload[:repository]}/#{payload[:source]}"
+      warn "[upload] Libraries: #{payload[:libraries]&.count || 0}"
+      warn "[upload] New versions: #{payload[:new_versions]&.count || 0}"
+      warn "[upload] Vulnerabilities: #{payload[:vulnerabilities]&.count || 0}"
+      warn "[upload] Dependencies: #{payload[:dependencies]&.count || 0}"
+
+      # Log sample of libraries (first 10)
+      if payload[:libraries]&.any?
+        warn "[upload] Sample libraries (first 10):"
+        payload[:libraries].first(10).each do |lib|
+          warn "[upload]   - #{lib[:name]} @ #{lib[:version]} (owner: #{lib[:owner]})"
+        end
+        warn "[upload]   ... and #{payload[:libraries].count - 10} more" if payload[:libraries].count > 10
+      end
+
+      # Log libraries with version updates
+      if payload[:new_versions]&.any?
+        outdated = payload[:new_versions].select { |v| v[:major]&.positive? }
+        warn "[upload] Libraries with major updates: #{outdated.count}"
+        outdated.first(5).each do |lib|
+          warn "[upload]   - #{lib[:name]}: #{lib[:major]} major, #{lib[:minor]} minor, #{lib[:patch]} patch behind"
+        end
+      end
+
+      # Log vulnerabilities
+      if payload[:vulnerabilities]&.any?
+        warn "[upload] Vulnerabilities found:"
+        payload[:vulnerabilities].first(10).each do |vuln|
+          warn "[upload]   - #{vuln[:library]}: #{vuln[:assigned_severity]} (#{vuln[:state]})"
+        end
+      end
     end
   end
 end
