@@ -123,6 +123,7 @@ module LibraryVersionAnalysis
 
       puts("\tPNPM [#{source}] dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, "pnpm")
+      filter_to_workspace_packages(parsed_results, all_libraries, source)
 
       puts("\tPNPM [#{source}] building dependency graph") if LibraryVersionAnalysis.dev_output?
       add_dependency_graph(parsed_results, workspace_path)
@@ -156,6 +157,7 @@ module LibraryVersionAnalysis
 
       puts("\tPNPM dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
+      filter_to_workspace_packages(parsed_results, all_libraries, source)
 
       puts("\tPNPM building dependency graph") if LibraryVersionAnalysis.dev_output?
       add_dependency_graph(parsed_results)
@@ -211,6 +213,14 @@ module LibraryVersionAnalysis
     end
 
     private
+
+    def filter_to_workspace_packages(parsed_results, all_libraries, source)
+      injected = parsed_results.keys.reject { |name| all_libraries.has_key?(name) }
+      return if injected.empty?
+
+      puts("\tPNPM [#{source}] removing #{injected.count} Dependabot alerts not in this workspace") if LibraryVersionAnalysis.dev_output?
+      injected.each { |name| parsed_results.delete(name) }
+    end
 
     def run_libyear
       # Ideally, we'd run the "pnpx libyear --package-manager pnpm --all --json" command from here.
