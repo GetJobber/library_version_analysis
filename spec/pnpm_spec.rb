@@ -643,6 +643,97 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
     end
   end
 
+  describe "#filter_to_workspace_packages" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    it "should remove Dependabot-injected packages not in the workspace dependency tree" do
+      all_libraries = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
+      }
+
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21"),
+        "@grpc/grpc-js" => LibraryVersionAnalysis::Versionline.new(
+          owner: LibraryVersionAnalysis::Configuration.get(:default_owner_name),
+          current_version: "?",
+          major: 0, minor: 0, patch: 0, age: 0,
+          vulnerabilities: [LibraryVersionAnalysis::Vulnerability.new(identifier: ["CVE-2024-37168"], assigned_severity: "MODERATE")]
+        )
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+
+      expect(parsed_results).to have_key("react")
+      expect(parsed_results).to have_key("lodash")
+      expect(parsed_results).not_to have_key("@grpc/grpc-js")
+    end
+
+    it "should not remove any packages when all are in the workspace" do
+      all_libraries = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
+      }
+
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+
+      expect(parsed_results.keys).to contain_exactly("react", "lodash")
+    end
+
+    it "should keep vulnerable packages that are actually in the workspace" do
+      all_libraries = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "vulnerable-lib" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "1.0.0")
+      }
+
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "vulnerable-lib" => LibraryVersionAnalysis::Versionline.new(
+          owner: ":unknown", current_version: "1.0.0",
+          vulnerabilities: [LibraryVersionAnalysis::Vulnerability.new(identifier: ["CVE-2024-00001"], assigned_severity: "HIGH")]
+        )
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+
+      expect(parsed_results).to have_key("vulnerable-lib")
+      expect(parsed_results["vulnerable-lib"].vulnerabilities).not_to be_empty
+    end
+
+    it "should handle empty parsed_results" do
+      all_libraries = {}
+      parsed_results = {}
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "root")
+
+      expect(parsed_results).to be_empty
+    end
+
+    it "should remove multiple injected packages from different workspaces" do
+      all_libraries = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0")
+      }
+
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "@grpc/grpc-js" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "?",
+          vulnerabilities: [LibraryVersionAnalysis::Vulnerability.new(identifier: ["CVE-2024-37168"], assigned_severity: "MODERATE")]),
+        "some-other-vuln" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "?",
+          vulnerabilities: [LibraryVersionAnalysis::Vulnerability.new(identifier: ["CVE-2024-99999"], assigned_severity: "HIGH")])
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+
+      expect(parsed_results.keys).to contain_exactly("react")
+    end
+  end
+
   describe "#add_ownerships with workspace_path" do
     let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
 
