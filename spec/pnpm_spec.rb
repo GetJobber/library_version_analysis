@@ -269,6 +269,78 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result["d"]).not_to be_nil
     end
 
+    it "should build graph from devDependencies when no dependencies exist" do
+      pnpm_dev_only = <<~DOC
+        [
+          {
+            "name": "workspace-pkg",
+            "version": "1.0.0",
+            "devDependencies": {
+              "a": {
+                "version": "1.0.0",
+                "dependencies": {
+                  "b": {
+                    "version": "2.0.0"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      DOC
+
+      parsed_results = { "a" => {}, "b" => {} }
+
+      analyzer = LibraryVersionAnalysis::Pnpm.new("test")
+      allow(analyzer).to receive(:run_pnpm_list).and_return(pnpm_dev_only)
+      result = analyzer.add_dependency_graph(parsed_results)
+
+      expect(result.count).to eq(2)
+      expect(result["b"].parents[0].name).to eq("a")
+    end
+
+    it "should build graph from both dependencies and devDependencies" do
+      pnpm_mixed = <<~DOC
+        [
+          {
+            "name": "workspace-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+              "a": {
+                "version": "1.0.0",
+                "dependencies": {
+                  "shared": {
+                    "version": "3.0.0"
+                  }
+                }
+              }
+            },
+            "devDependencies": {
+              "b": {
+                "version": "2.0.0",
+                "dependencies": {
+                  "shared": {
+                    "version": "3.0.0"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      DOC
+
+      parsed_results = { "a" => {}, "b" => {}, "shared" => {} }
+
+      analyzer = LibraryVersionAnalysis::Pnpm.new("test")
+      allow(analyzer).to receive(:run_pnpm_list).and_return(pnpm_mixed)
+      result = analyzer.add_dependency_graph(parsed_results)
+
+      expect(result.count).to eq(3)
+      expect(result["shared"].parents.count).to eq(2)
+      parent_names = result["shared"].parents.map(&:name)
+      expect(parent_names).to contain_exactly("a", "b")
+    end
+
     it "should gracefully handle pnpm list failure" do
       parsed_results = { "a" => {}, "b" => {} }
 
@@ -647,10 +719,7 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
     let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
 
     it "should remove Dependabot-injected packages not in the workspace dependency tree" do
-      all_libraries = {
-        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
-        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
-      }
+      workspace_package_names = Set["react", "lodash"]
 
       parsed_results = {
         "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
@@ -663,7 +732,7 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
         )
       }
 
-      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+      analyzer.send(:filter_to_workspace_packages, parsed_results, workspace_package_names, "packages/visualizations")
 
       expect(parsed_results).to have_key("react")
       expect(parsed_results).to have_key("lodash")
@@ -671,26 +740,20 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
     end
 
     it "should not remove any packages when all are in the workspace" do
-      all_libraries = {
-        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
-        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
-      }
+      workspace_package_names = Set["react", "lodash"]
 
       parsed_results = {
         "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
         "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
       }
 
-      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+      analyzer.send(:filter_to_workspace_packages, parsed_results, workspace_package_names, "packages/visualizations")
 
       expect(parsed_results.keys).to contain_exactly("react", "lodash")
     end
 
     it "should keep vulnerable packages that are actually in the workspace" do
-      all_libraries = {
-        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
-        "vulnerable-lib" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "1.0.0")
-      }
+      workspace_package_names = Set["react", "vulnerable-lib"]
 
       parsed_results = {
         "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
@@ -700,25 +763,23 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
         )
       }
 
-      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+      analyzer.send(:filter_to_workspace_packages, parsed_results, workspace_package_names, "packages/visualizations")
 
       expect(parsed_results).to have_key("vulnerable-lib")
       expect(parsed_results["vulnerable-lib"].vulnerabilities).not_to be_empty
     end
 
     it "should handle empty parsed_results" do
-      all_libraries = {}
+      workspace_package_names = Set[]
       parsed_results = {}
 
-      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "root")
+      analyzer.send(:filter_to_workspace_packages, parsed_results, workspace_package_names, "root")
 
       expect(parsed_results).to be_empty
     end
 
     it "should remove multiple injected packages from different workspaces" do
-      all_libraries = {
-        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0")
-      }
+      workspace_package_names = Set["react"]
 
       parsed_results = {
         "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
@@ -728,9 +789,32 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
           vulnerabilities: [LibraryVersionAnalysis::Vulnerability.new(identifier: ["CVE-2024-99999"], assigned_severity: "HIGH")])
       }
 
-      analyzer.send(:filter_to_workspace_packages, parsed_results, all_libraries, "packages/visualizations")
+      analyzer.send(:filter_to_workspace_packages, parsed_results, workspace_package_names, "packages/visualizations")
 
       expect(parsed_results.keys).to contain_exactly("react")
+    end
+
+    it "should filter correctly even when Dependabot mutates the same hash object" do
+      # Simulates the real production flow: parse_libyear returns all_libraries as
+      # parsed_results (same object). The snapshot of keys must be taken before
+      # add_dependabot_findings mutates the hash, otherwise the filter is a no-op.
+      shared_hash = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "18.2.0"),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "4.17.21")
+      }
+      workspace_package_names = shared_hash.keys.to_set
+
+      # Simulate what add_dependabot_findings does: inject cross-workspace packages
+      shared_hash["@grpc/grpc-js"] = LibraryVersionAnalysis::Versionline.new(
+        owner: ":unknown", current_version: "?",
+        vulnerabilities: [LibraryVersionAnalysis::Vulnerability.new(identifier: ["CVE-2024-37168"], assigned_severity: "MODERATE")]
+      )
+
+      analyzer.send(:filter_to_workspace_packages, shared_hash, workspace_package_names, "packages/visualizations")
+
+      expect(shared_hash).to have_key("react")
+      expect(shared_hash).to have_key("lodash")
+      expect(shared_hash).not_to have_key("@grpc/grpc-js")
     end
   end
 

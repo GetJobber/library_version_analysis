@@ -120,10 +120,13 @@ module LibraryVersionAnalysis
 
       puts("\tPNPM [#{source}] parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
+      # Snapshot before Dependabot: parse_libyear returns all_libraries as parsed_results (same object),
+      # so any keys Dependabot injects into parsed_results also appear in all_libraries.
+      workspace_package_names = parsed_results.keys.to_set
 
       puts("\tPNPM [#{source}] dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, "pnpm")
-      filter_to_workspace_packages(parsed_results, all_libraries, source)
+      filter_to_workspace_packages(parsed_results, workspace_package_names, source)
 
       puts("\tPNPM [#{source}] building dependency graph") if LibraryVersionAnalysis.dev_output?
       add_dependency_graph(parsed_results, workspace_path)
@@ -154,10 +157,13 @@ module LibraryVersionAnalysis
 
       puts("\tPNPM parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
+      # Snapshot before Dependabot: parse_libyear returns all_libraries as parsed_results (same object),
+      # so any keys Dependabot injects into parsed_results also appear in all_libraries.
+      workspace_package_names = parsed_results.keys.to_set
 
       puts("\tPNPM dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
-      filter_to_workspace_packages(parsed_results, all_libraries, source)
+      filter_to_workspace_packages(parsed_results, workspace_package_names, source)
 
       puts("\tPNPM building dependency graph") if LibraryVersionAnalysis.dev_output?
       add_dependency_graph(parsed_results)
@@ -196,6 +202,7 @@ module LibraryVersionAnalysis
 
       packages.each do |package|
         all_nodes = build_dependency_graph(all_nodes, package["dependencies"], nil)
+        all_nodes = build_dependency_graph(all_nodes, package["devDependencies"], nil)
       end
 
       missing_keys = {} # TODO: handle missing keys
@@ -214,8 +221,8 @@ module LibraryVersionAnalysis
 
     private
 
-    def filter_to_workspace_packages(parsed_results, all_libraries, source)
-      injected = parsed_results.keys.reject { |name| all_libraries.has_key?(name) }
+    def filter_to_workspace_packages(parsed_results, workspace_package_names, source)
+      injected = parsed_results.keys.reject { |name| workspace_package_names.include?(name) }
       return if injected.empty?
 
       puts("\tPNPM [#{source}] removing #{injected.count} Dependabot alerts not in this workspace") if LibraryVersionAnalysis.dev_output?
@@ -275,9 +282,9 @@ module LibraryVersionAnalysis
     def add_all_libraries(workspace_path = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       all_libraries = {}
       cmd = if workspace_path
-              "pnpm list --dir #{workspace_path} --depth=Infinity --silent"
+              "pnpm list --dir #{workspace_path} --depth=0 --silent"
             else
-              "pnpm list --depth=Infinity --silent"
+              "pnpm list --depth=0 --silent"
             end
 
       results, _stderr, _status = Open3.capture3(cmd)
