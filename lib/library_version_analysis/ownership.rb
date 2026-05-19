@@ -2,6 +2,25 @@ module LibraryVersionAnalysis
   module Ownership
     OWNER_REASON_ASSIGNED = "-assigned-".freeze
 
+    # Canonicalize an owner team name for use in the outbound upload payload.
+    #
+    # This rule MUST stay in lockstep with `library_tracking`'s
+    # `Owner.canonicalize_team`. If you change one, change the other in the same
+    # release. See openspec change `emit-canonical-owner-names` (LIBTRACK-132)
+    # for the shared canonicalization contract.
+    #
+    # Accepts strings or symbols. Returns a canonical lowercase string with
+    # surrounding whitespace, quotes (`"`/`'`), and colons stripped. Empty,
+    # nil, or punctuation-only inputs fall back to the literal `"unknown"`.
+    def self.canonicalize(name)
+      s = name.to_s.strip
+      s = s.gsub(/\A["']+|["']+\z/, "")
+      s = s.gsub(/\A:+|:+\z/, "")
+      s = s.strip
+      s = s.downcase
+      s.empty? ? "unknown" : s
+    end
+
     def add_transitive_ownerships(parsed_results)
       parsed_results.select { |_, result_data| unknown_owner?(result_data.owner) }.each do |name, line_data|
         @current_library = name

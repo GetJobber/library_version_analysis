@@ -64,4 +64,43 @@ RSpec.describe LibraryVersionAnalysis::CheckVersionStatus do
       expect(mode.unowned_issues).to eq(3)
     end
   end
+
+  describe "#server_data" do
+    let(:payload_results) do
+      {
+        gem_a: LibraryVersionAnalysis::Versionline.new(owner: ":bizops", owner_reason: nil, current_version: "1.0.0", latest_version: nil, major: 0, minor: 0, patch: 0, vulnerabilities: nil, dependency_graph: nil),
+        gem_b: LibraryVersionAnalysis::Versionline.new(owner: :attention_needed, owner_reason: nil, current_version: "2.0.0", latest_version: nil, major: 0, minor: 0, patch: 0, vulnerabilities: nil, dependency_graph: nil),
+        gem_c: LibraryVersionAnalysis::Versionline.new(owner: '"bizops"', owner_reason: nil, current_version: "3.0.0", latest_version: nil, major: 0, minor: 0, patch: 0, vulnerabilities: nil, dependency_graph: nil),
+      }
+    end
+
+    it "canonicalizes Gemfile-style symbol owners like :bizops to bizops" do
+      payload = subject.server_data(payload_results, "jobber", "gemfile")
+      entry = payload[:libraries].find { |l| l[:name] == :gem_a }
+      expect(entry[:owner]).to eq("bizops")
+    end
+
+    it "canonicalizes the :attention_needed symbol to the string attention_needed" do
+      payload = subject.server_data(payload_results, "jobber", "gemfile")
+      entry = payload[:libraries].find { |l| l[:name] == :gem_b }
+      expect(entry[:owner]).to eq("attention_needed")
+    end
+
+    it "canonicalizes quote-wrapped owner names captured from the Gemfile regex" do
+      payload = subject.server_data(payload_results, "jobber", "gemfile")
+      entry = payload[:libraries].find { |l| l[:name] == :gem_c }
+      expect(entry[:owner]).to eq("bizops")
+    end
+
+    it "does not mutate Versionline#owner on the in-memory rows" do
+      original_owners = payload_results.transform_values(&:owner)
+
+      subject.server_data(payload_results, "jobber", "gemfile")
+
+      payload_results.each do |name, row|
+        expect(row.owner).to eq(original_owners[name]),
+          "expected row.owner for #{name} to remain #{original_owners[name].inspect} after #server_data, got #{row.owner.inspect}"
+      end
+    end
+  end
 end
