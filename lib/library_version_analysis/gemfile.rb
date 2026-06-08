@@ -1,3 +1,4 @@
+require "open3"
 require "library_version_analysis/ownership"
 require "library_version_analysis/configuration"
 require "code_ownership"

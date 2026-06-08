@@ -19,6 +19,6 @@
 
 ## 4. Verify
 
-- [x] 4.1 Run `bundle exec rspec` and confirm `CheckVersionStatus` specs pass (note any pre-existing unrelated failures). (CheckVersionStatus 7/7 pass; `bundle install` clean without Google gems. 16 pre-existing `uninitialized constant Open3` failures in npm/pnpm specs are unrelated to this change.)
+- [x] 4.1 Run `bundle exec rspec` and confirm the suite passes. (Full suite 109/0. Removing the Google gems also removed the transitive `require`s that `npm.rb`/`pnpm.rb`/`gemfile.rb`/`github.rb`/`library_tracking.rb` relied on for stdlib (`open3`, `json`, `time`, `date`, `zlib`, `uri`) — those files now require the stdlib they use explicitly. This regression was caught in CI.)
 - [x] 4.2 Grep the repo for `spreadsheet`, `googleauth`, `sheets_v4`, `VERSION_STATUS_SPREADSHEET_ID` and confirm no remaining references in code.
 - [x] 4.3 Confirm ordering with JOB-171738: Jobber must stop passing `spreadsheet_id` before (or together with) releasing this change.

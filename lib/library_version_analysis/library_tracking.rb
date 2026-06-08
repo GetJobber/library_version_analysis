@@ -1,4 +1,6 @@
 require "net/http"
+require "uri"
+require "zlib"
 
 module LibraryVersionAnalysis
   class LibraryTracking
