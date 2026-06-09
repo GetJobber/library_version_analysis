@@ -15,7 +15,7 @@
 
 - [x] 3.1 Add a dedicated `#add_all_libraries` context in `spec/pnpm_spec.rb` (the method was stubbed everywhere) with fixtures based on the real JSON from task 1
 - [x] 3.2 Cover: scoped + unscoped names resolve; per-workspace results differ; multi-version → range; `link:`/`workspace:` dep → skipped; single-package repo; pnpm-list failure → empty
-- [x] 3.3 Verified the new logic end-to-end against the real `pnpm.rb` via an isolated harness reproducing every spec scenario (all green). NOTE: full `bundle exec rspec` is blocked by a pre-existing `multi_json`/`google-apis` lockfile gap unrelated to this change (spec_helper requires the whole library, which pulls `google/apis/sheets_v4`). Re-run the bundler suite once that env issue is resolved.
+- [x] 3.3 `bundle exec rspec` passes (116 examples, 0 failures), including the new `#add_all_libraries` specs. Also fixed a pre-existing suite-load failure by declaring `multi_json` in the Gemfile (representable pulls it in via google-api-client but does not declare it, so bundler omitted it and `require "google/apis/sheets_v4"` failed).
 
 ## 4. Verify against jobber-frontend
 
