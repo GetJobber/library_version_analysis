@@ -406,6 +406,127 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
     end
   end
 
+  describe "#add_all_libraries" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    let(:pnpm_list_json) do
+      <<~DOC
+        [
+          {
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "path": "/project",
+            "dependencies": {
+              "@apollo/client": { "from": "@apollo/client", "version": "3.13.8" },
+              "wrangler": { "from": "wrangler", "version": "4.76.0" }
+            },
+            "devDependencies": {
+              "@jobberfe/tsconfig": { "from": "@jobberfe/tsconfig", "version": "link:packages/tsconfig" },
+              "internal-pkg": { "from": "internal-pkg", "version": "workspace:*" }
+            }
+          },
+          {
+            "name": "jobber-online",
+            "version": "1.0.0",
+            "path": "/project/apps/jobber-online",
+            "dependencies": {
+              "@apollo/client": { "from": "@apollo/client", "version": "3.13.8" }
+            },
+            "devDependencies": {
+              "storybook": { "from": "storybook", "version": "9.0.16" }
+            }
+          },
+          {
+            "name": "core",
+            "version": "1.0.0",
+            "path": "/project/packages/core",
+            "dependencies": {
+              "lodash": { "from": "lodash", "version": "4.17.21" }
+            },
+            "devDependencies": {}
+          }
+        ]
+      DOC
+    end
+
+    before do
+      allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(pnpm_list_json)
+    end
+
+    it "resolves scoped and unscoped versions for the selected workspace" do
+      result = analyzer.send(:add_all_libraries, "/project")
+
+      expect(result["@apollo/client"].current_version).to eq("3.13.8")
+      expect(result["wrangler"].current_version).to eq("4.76.0")
+    end
+
+    it "produces different results per workspace" do
+      online = analyzer.send(:add_all_libraries, "/project/apps/jobber-online")
+      core = analyzer.send(:add_all_libraries, "/project/packages/core")
+
+      expect(online).to have_key("storybook")
+      expect(core).not_to have_key("storybook")
+      expect(core["lodash"].current_version).to eq("4.17.21")
+    end
+
+    it "skips link: and workspace: specifiers (no installed version)" do
+      result = analyzer.send(:add_all_libraries, "/project")
+
+      expect(result).not_to have_key("@jobberfe/tsconfig")
+      expect(result).not_to have_key("internal-pkg")
+    end
+
+    it "combines multiple resolved versions into a range" do
+      multi = <<~DOC
+        [
+          {
+            "name": "workspace-root",
+            "path": "/project",
+            "dependencies": { "pkg": { "version": "4.54.0" } },
+            "devDependencies": { "pkg": { "version": "4.76.0" } }
+          }
+        ]
+      DOC
+      allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(multi)
+
+      result = analyzer.send(:add_all_libraries, "/project")
+
+      expect(result["pkg"].current_version).to eq("4.54.0..4.76.0")
+    end
+
+    it "returns empty and warns when no workspace entry matches" do
+      expect(analyzer).to receive(:warn).with(/Could not find pnpm list entry/)
+
+      result = analyzer.send(:add_all_libraries, "/project/apps/does-not-exist")
+
+      expect(result).to be_empty
+    end
+
+    it "uses the only entry for a single-package repo (no workspace_path)" do
+      single = <<~DOC
+        [
+          {
+            "name": "solo",
+            "path": "/project",
+            "dependencies": { "lodash": { "version": "4.17.21" } },
+            "devDependencies": {}
+          }
+        ]
+      DOC
+      allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(single)
+
+      result = analyzer.send(:add_all_libraries)
+
+      expect(result["lodash"].current_version).to eq("4.17.21")
+    end
+
+    it "returns empty on pnpm list failure" do
+      allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(nil)
+
+      expect(analyzer.send(:add_all_libraries, "/project")).to be_empty
+    end
+  end
+
   describe "#calculate_version" do
     let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
 
