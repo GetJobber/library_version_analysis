@@ -279,42 +279,88 @@ module LibraryVersionAnalysis
       results
     end
 
-    def add_all_libraries(workspace_path = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # Resolve the installed ("current") version of each dependency for the
+    # analyzed workspace using the structured `pnpm list --json` output.
+    #
+    # We deliberately read the resolved `version` field instead of scraping the
+    # rendered tree output: the text rendering depends on the terminal (e.g. the
+    # `├── ` prefix is absent in non-TTY/CI runs), which previously caused every
+    # current_version to come back blank.
+    def add_all_libraries(workspace_path = nil)
       all_libraries = {}
-      cmd = if workspace_path
-              "pnpm list --dir #{workspace_path} --depth=0 --silent"
-            else
-              "pnpm list --depth=0 --silent"
-            end
 
-      results, _stderr, _status = Open3.capture3(cmd)
+      results = run_pnpm_list_depth0
+      return all_libraries if results.nil?
 
-      results.each_line do |line|
-        next if line.include?("UNMET OPTIONAL DEPENDENCY")
+      begin
+        json = JSON.parse(results)
+      rescue JSON::ParserError
+        return all_libraries
+      end
 
-        # pnpm list output format is slightly different from npm
-        # Example: ├── lodash 4.17.21
-        scan_result = line.scan(/^.*?\s([@\w][^\s]+)\s([.\d]+)/)
+      packages = json.is_a?(Array) ? json : [json]
+      package = select_workspace_package(packages, workspace_path)
+      return all_libraries if package.nil?
 
-        if scan_result.nil? || scan_result.empty?
-          # Try alternative format: ├── @scope/package@version
-          scan_result = line.scan(/^.*?\s([@\w].+)@([.\d]+)/)
-        end
+      %w(dependencies devDependencies).each do |group|
+        (package[group] || {}).each do |name, info|
+          version = current_version_from_info(info)
+          next if version.nil? # link:/workspace: specifiers have no installed version
 
-        unless scan_result.nil? || scan_result.empty?
-          name = scan_result[0][0]
-
-          vv = all_libraries[name]
-          if vv.nil?
-            vv = new_version_line(scan_result[0][1])
-            all_libraries[name] = vv
-          else
-            vv.current_version = calculate_version(vv.current_version, scan_result[0][1])
-          end
+          add_library_version(all_libraries, name, version)
         end
       end
 
       return all_libraries
+    end
+
+    # `pnpm list --json` returns an array of project objects (one per workspace).
+    # Pick the entry whose resolved path matches the workspace being analyzed so
+    # per-workspace results are distinct. When no workspace_path is given (a
+    # single-package repo) there is only one entry to use.
+    def select_workspace_package(packages, workspace_path)
+      return packages.first if workspace_path.nil?
+
+      normalized = File.expand_path(workspace_path)
+      match = packages.find { |p| p["path"] && File.expand_path(p["path"]) == normalized }
+
+      if match.nil?
+        warn "Could not find pnpm list entry for workspace #{workspace_path}; skipping current versions for this workspace."
+      end
+
+      match
+    end
+
+    # Returns the resolved semver string, or nil when there is no installed
+    # version (missing, or a non-semver specifier such as link:/workspace:).
+    def current_version_from_info(info)
+      return nil unless info.is_a?(Hash)
+
+      version = info["version"]
+      return nil if version.nil? || version.empty?
+      return nil if version.include?(":") # e.g. "link:packages/x", "workspace:*"
+
+      version
+    end
+
+    def add_library_version(all_libraries, name, version)
+      existing = all_libraries[name]
+      if existing.nil?
+        all_libraries[name] = new_version_line(version)
+      else
+        existing.current_version = calculate_version(existing.current_version, version)
+      end
+    end
+
+    def run_pnpm_list_depth0
+      # No --dir: from a workspace root pnpm lists every workspace project, and
+      # we select the relevant one in select_workspace_package. (--dir collapses
+      # to the workspace root, which would make every workspace identical.)
+      results, _stderr, status = Open3.capture3("pnpm list --depth=0 --json")
+
+      return nil if status.exitstatus != 0
+
+      results
     end
 
     def new_version_line(current_version)
