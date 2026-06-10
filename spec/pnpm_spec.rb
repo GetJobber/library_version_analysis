@@ -987,4 +987,72 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(parsed_results["unknown-lib"].owner).to eq(":default")
     end
   end
+
+  describe "#get_versions_for_workspace libyear scoping" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    def versionline(current)
+      LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: current)
+    end
+
+    # libyear reports a name that IS in the resolved set (react) and a foreign one
+    # (@fullcalendar/core) that belongs to another workspace via the merged-union libyear file.
+    let(:libyear) do
+      '[{"dependency":"react","drift":0.3,"major":1,"minor":2,"patch":3,"available":"19.0.0"},' \
+      '{"dependency":"@fullcalendar/core","drift":1.7,"major":1,"minor":10,"patch":7,"available":"5.10.1"}]'
+    end
+
+    before do
+      allow(analyzer).to receive(:run_libyear_for_workspace).and_return(libyear)
+      allow(analyzer).to receive(:add_dependabot_findings).and_return(nil)
+      allow(analyzer).to receive(:add_dependency_graph).and_return({})
+      allow(analyzer).to receive(:break_cycles)
+      allow(analyzer).to receive(:add_ownerships)
+    end
+
+    it "drops libyear-only deps not in the resolved workspace set" do
+      allow(analyzer).to receive(:add_all_libraries).with("/project/apps/jobber-online")
+                                                    .and_return({ "react" => versionline("19.2.3") })
+
+      parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
+
+      expect(parsed).to have_key("react")
+      expect(parsed).not_to have_key("@fullcalendar/core")
+    end
+
+    it "retains and enriches a dep present in both the resolved set and libyear" do
+      allow(analyzer).to receive(:add_all_libraries).with("/project/apps/jobber-online")
+                                                    .and_return({ "react" => versionline("19.2.3") })
+
+      parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
+
+      expect(parsed["react"].current_version).to eq("19.2.3")
+      expect(parsed["react"].latest_version).to eq("19.0.0")
+      expect(parsed["react"].major).to eq(1)
+      expect(parsed["react"].minor).to eq(2)
+      expect(parsed["react"].patch).to eq(3)
+    end
+
+    it "keeps per-workspace results distinct (foreign libyear dep excluded)" do
+      allow(analyzer).to receive(:add_all_libraries).with("/project/packages/core")
+                                                    .and_return({ "lodash" => versionline("4.17.21") })
+
+      parsed, = analyzer.get_versions_for_workspace("/project/packages/core", "packages/core")
+
+      expect(parsed.keys).to contain_exactly("lodash")
+      expect(parsed).not_to have_key("react")
+      expect(parsed).not_to have_key("@fullcalendar/core")
+    end
+
+    it "skips the scope filter (does not drop everything) when the resolved set is empty" do
+      allow(analyzer).to receive(:add_all_libraries).and_return({})
+      allow(analyzer).to receive(:warn)
+
+      parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
+
+      # Prior behavior preserved: libyear-only entries are retained rather than wiped.
+      expect(parsed).to have_key("react")
+      expect(parsed).to have_key("@fullcalendar/core")
+    end
+  end
 end

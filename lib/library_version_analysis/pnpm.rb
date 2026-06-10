@@ -118,11 +118,16 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
+      # Snapshot the resolved dependency set for THIS workspace BEFORE merging libyear.
+      # add_all_libraries returns only the analyzed workspace's resolved dependencies, whereas
+      # libyear (whole-monorepo union) and Dependabot can inject names that belong to other
+      # workspaces. Filtering back to this set drops that bleed instead of uploading it with a
+      # blank current_version. (parse_libyear returns all_libraries as the same object, so the
+      # snapshot must be taken before it adds libyear-only keys.)
+      workspace_package_names = all_libraries.keys.to_set
+
       puts("\tPNPM [#{source}] parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
-      # Snapshot before Dependabot: parse_libyear returns all_libraries as parsed_results (same object),
-      # so any keys Dependabot injects into parsed_results also appear in all_libraries.
-      workspace_package_names = parsed_results.keys.to_set
 
       puts("\tPNPM [#{source}] dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, "pnpm")
@@ -155,11 +160,13 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
+      # Snapshot the resolved dependency set for this repo BEFORE merging libyear (see the
+      # workspace variant for the rationale): libyear and Dependabot can inject names beyond the
+      # resolved set, and parse_libyear mutates all_libraries in place.
+      workspace_package_names = all_libraries.keys.to_set
+
       puts("\tPNPM parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
-      # Snapshot before Dependabot: parse_libyear returns all_libraries as parsed_results (same object),
-      # so any keys Dependabot injects into parsed_results also appear in all_libraries.
-      workspace_package_names = parsed_results.keys.to_set
 
       puts("\tPNPM dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
@@ -221,11 +228,21 @@ module LibraryVersionAnalysis
 
     private
 
+    # Restrict parsed_results to the analyzed workspace's resolved dependency set, dropping names
+    # injected by libyear (whole-monorepo union) or Dependabot that are not actually dependencies
+    # of this workspace. Those would otherwise upload with a blank current_version.
     def filter_to_workspace_packages(parsed_results, workspace_package_names, source)
+      # Guard: if the resolved set is empty (e.g. pnpm list failed and add_all_libraries returned
+      # {}), do not drop every library. Skip the restriction and keep prior behavior.
+      if workspace_package_names.empty?
+        warn "PNPM [#{source}] resolved dependency set is empty; skipping workspace-scope filter"
+        return
+      end
+
       injected = parsed_results.keys.reject { |name| workspace_package_names.include?(name) }
       return if injected.empty?
 
-      puts("\tPNPM [#{source}] removing #{injected.count} Dependabot alerts not in this workspace") if LibraryVersionAnalysis.dev_output?
+      puts("\tPNPM [#{source}] removing #{injected.count} libraries not in this workspace's resolved dependencies") if LibraryVersionAnalysis.dev_output?
       injected.each { |name| parsed_results.delete(name) }
     end
 
