@@ -19,7 +19,12 @@ The system SHALL upload library records only for dependencies present in the ana
 - **WHEN** a dependency is in both the analyzed workspace's resolved dependency set and the libyear report
 - **THEN** its library record SHALL be retained and SHALL carry both the resolved current version and the libyear-provided latest version
 
-#### Scenario: Resolved set unavailable
+#### Scenario: Workspace genuinely has no resolvable direct dependencies
 
-- **WHEN** the analyzed workspace's resolved dependency set cannot be determined (e.g. `pnpm list --json` failed and returned no data)
-- **THEN** the system SHALL NOT drop all libraries as out-of-scope, and SHALL instead skip the workspace-scope restriction and log that it was skipped
+- **WHEN** the analyzed workspace is resolved successfully but has no registry-versioned direct dependencies (e.g. only `link:`/`workspace:` deps, or none)
+- **THEN** the workspace-scope restriction SHALL still apply, so libyear-reported dependencies from other workspaces SHALL be dropped and the workspace SHALL contribute no version-less library records
+
+#### Scenario: Resolved set cannot be determined
+
+- **WHEN** the analyzed workspace's resolved dependency set cannot be determined (e.g. `pnpm list --json` failed, returned unparseable output, or contained no matching workspace entry)
+- **THEN** the system SHALL distinguish this from an empty-but-resolved set, SHALL NOT drop all libraries as out-of-scope, and SHALL instead skip the workspace-scope restriction and log that it was skipped

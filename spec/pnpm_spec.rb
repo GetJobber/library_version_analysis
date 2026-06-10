@@ -54,7 +54,9 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       allow(analyzer).to receive(:run_pnpm_list_recursive).and_return(pnpm_list_recursive)
       allow(analyzer).to receive(:discover_workspaces).and_return([])
       allow(analyzer).to receive(:add_dependabot_findings).and_return(nil)
-      allow(analyzer).to receive(:add_all_libraries).and_return({})
+      # nil => resolved set could not be determined, so the workspace-scope filter is skipped
+      # and the libyear-derived results below are retained (this context exercises that wiring).
+      allow(analyzer).to receive(:add_all_libraries).and_return(nil)
 
       analyzer.get_versions("test")
     end
@@ -494,12 +496,12 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result["pkg"].current_version).to eq("4.54.0..4.76.0")
     end
 
-    it "returns empty and warns when no workspace entry matches" do
+    it "returns nil and warns when no workspace entry matches" do
       expect(analyzer).to receive(:warn).with(/Could not find pnpm list entry/)
 
       result = analyzer.send(:add_all_libraries, "/project/apps/does-not-exist")
 
-      expect(result).to be_empty
+      expect(result).to be_nil
     end
 
     it "uses the only entry for a single-package repo (no workspace_path)" do
@@ -520,10 +522,28 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result["lodash"].current_version).to eq("4.17.21")
     end
 
-    it "returns empty on pnpm list failure" do
+    it "returns nil on pnpm list failure" do
       allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(nil)
 
-      expect(analyzer.send(:add_all_libraries, "/project")).to be_empty
+      expect(analyzer.send(:add_all_libraries, "/project")).to be_nil
+    end
+
+    it "returns an empty hash (not nil) when the workspace has no resolvable deps" do
+      empty_ws = <<~DOC
+        [
+          {
+            "name": "tsconfig",
+            "path": "/project",
+            "dependencies": {},
+            "devDependencies": { "sibling": { "version": "link:../sibling" } }
+          }
+        ]
+      DOC
+      allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(empty_ws)
+
+      result = analyzer.send(:add_all_libraries, "/project")
+
+      expect(result).to eq({})
     end
   end
 
@@ -899,6 +919,28 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(parsed_results).to be_empty
     end
 
+    it "removes everything when the resolved set is empty (no deps in this workspace)" do
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: ""),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "")
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, Set[], "packages/tsconfig")
+
+      expect(parsed_results).to be_empty
+    end
+
+    it "skips filtering when the resolved set is nil (pnpm could not determine deps)" do
+      allow(analyzer).to receive(:warn)
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "")
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, nil, "apps/harbour")
+
+      expect(parsed_results).to have_key("react")
+    end
+
     it "should remove multiple injected packages from different workspaces" do
       workspace_package_names = Set["react"]
 
@@ -1044,13 +1086,23 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(parsed).not_to have_key("@fullcalendar/core")
     end
 
-    it "skips the scope filter (does not drop everything) when the resolved set is empty" do
+    it "drops the whole libyear union when the workspace resolves to no deps (empty set)" do
+      # Empty hash = workspace was resolved and genuinely has no registry-versioned direct deps
+      # (e.g. only link:/workspace: deps). The libyear union must NOT be uploaded as blanks.
       allow(analyzer).to receive(:add_all_libraries).and_return({})
+
+      parsed, = analyzer.get_versions_for_workspace("/project/packages/tsconfig", "packages/tsconfig")
+
+      expect(parsed).to be_empty
+    end
+
+    it "skips the filter (retains libyear data) when the resolved set cannot be determined (nil)" do
+      allow(analyzer).to receive(:add_all_libraries).and_return(nil)
       allow(analyzer).to receive(:warn)
 
       parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
 
-      # Prior behavior preserved: libyear-only entries are retained rather than wiped.
+      # pnpm could not determine deps: keep prior behavior rather than wiping.
       expect(parsed).to have_key("react")
       expect(parsed).to have_key("@fullcalendar/core")
     end

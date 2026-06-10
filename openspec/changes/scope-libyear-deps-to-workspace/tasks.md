@@ -4,7 +4,7 @@
 
 ## 1. Confirm the resolved-set vs libyear-set gap
 
-- [ ] 1.1 From a `jobber-frontend` worktree, capture `add_all_libraries` output for a small workspace (e.g. `packages/tsconfig`) and that workspace's `libyear_packages-tsconfig.txt`; confirm libyear lists ~248 names while the resolved set lists only that workspace's deps. _(Pending live capture; the union behavior was confirmed from libyear 0.8.0 source + the CSV.)_
+- [x] 1.1 From a `jobber-frontend` worktree, capture `add_all_libraries` output for a small workspace (e.g. `packages/tsconfig`) and that workspace's `libyear_packages-tsconfig.txt`; confirm libyear lists ~248 names while the resolved set lists only that workspace's deps. _(Confirmed live: tsconfig resolves 0 registry deps (only a `link:`), while its libyear file held 215 union entries.)_
 - [x] 1.2 Confirm the blank rows in the CSV correspond exactly to `libyear_names − resolved_names` for each workspace. _(Confirmed during exploration: 5,975 blank rows; a near-constant ~248-name set blank in every workspace, each name versioned only in the 1–3 workspaces where it is a real dependency.)_
 
 ## 2. Scope the upload to the resolved workspace set
@@ -24,8 +24,8 @@
 
 ## 4. Verify against jobber-frontend
 
-- [ ] 4.1 Run analysis for ≥2 workspaces and confirm zero blank `current_version` entries in the upload payload (`server_data`) and that each workspace's library set matches its own resolved deps.
-- [ ] 4.2 Spot-check that previously-foreign names (e.g. `@fullcalendar/core` in `packages/tsconfig`) are absent from workspaces where they are not dependencies.
+- [x] 4.1 Run analysis for ≥2 workspaces and confirm zero blank `current_version` entries in the upload payload (`server_data`) and that each workspace's library set matches its own resolved deps. _(Ran all 24 jobber-frontend workspaces via a local harness: 0 blank current_version across every workspace; total libraries 1,270 → 625.)_
+- [x] 4.2 Spot-check that previously-foreign names (e.g. `@fullcalendar/core` in `packages/tsconfig`) are absent from workspaces where they are not dependencies. _(Confirmed: empty workspaces (harbour, tsconfig, graphql-depth-limit-plugin) now contribute 0 libraries instead of the ~215-entry union.)_
 
 ## 5. Release & rollout
 
