@@ -7,9 +7,8 @@ gem "rspec", "~> 3.0"
 gem "graphql", "~> 2.4.8"
 gem "graphql-client", "~> 0.18"
 
-# representable (pulled in via google-api-client) requires "multi_json" at
-# runtime but does not declare it as a dependency, so bundler omits it and
-# loading google/apis/sheets_v4 fails with "multi_json is not part of the bundle".
-gem "multi_json"
+# multi_json is declared as a runtime dependency in the gemspec (representable, pulled in via
+# google-api-client, requires it at runtime without declaring it). It is intentionally not
+# repeated here so the gemspec remains the single source of truth for gem consumers.
 
 plugin "bundler-why"

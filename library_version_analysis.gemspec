@@ -19,6 +19,11 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "https://github.com/GetJobber/library_version_analysis/CHANGELOG.MD"
 
   spec.add_dependency 'google-api-client'
+  # representable (pulled in transitively via google-api-client) requires "multi_json" at runtime
+  # but does not declare it, so consumers' bundles omit it and `require "google/apis/sheets_v4"`
+  # fails with "multi_json is not part of the bundle". Declare it here so it propagates to any gem
+  # consumer (e.g. jobber-frontend's bin/Gemfile), not just this gem's own dev bundle.
+  spec.add_dependency "multi_json"
   spec.add_dependency "googleauth"
   spec.add_dependency "graphql-client", "~> 0.20"
   spec.add_dependency "libyear-bundler"
