@@ -1,5 +1,3 @@
-require "googleauth"
-require "google/apis/sheets_v4"
 require "pry-byebug"
 require "library_version_analysis/library_tracking"
 require "library_version_analysis/configuration"
@@ -48,7 +46,7 @@ module LibraryVersionAnalysis
 
   class CheckVersionStatus
     # TODO: joint - Need to change Jobbers https://github.com/GetJobber/Jobber/blob/dea12cebf8e6c65b2cafb5318bd42c1f3bf7d7a3/lib/code_analysis/code_analyzer/online_version_analysis.rb#L6 to run three times. One for each.
-    def self.run(spreadsheet_id: "", repository: "", source: "", context: nil)
+    def self.run(repository: "", source: "", context: nil)
       # check for env vars before we do anything
       keys = %w(WORD_LIST_RANDOM_SEED GITHUB_READ_API_TOKEN LIBRARY_UPLOAD_URL UPLOAD_KEY)
       missing_keys = keys.reject { |key| !ENV[key].nil? && !ENV[key].empty? }
@@ -56,7 +54,7 @@ module LibraryVersionAnalysis
       raise "Missing ENV vars: #{missing_keys}" if missing_keys.any?
 
       c = CheckVersionStatus.new
-      mode_results = c.go(spreadsheet_id: spreadsheet_id, repository: repository, source: source, context: context)
+      mode_results = c.go(repository: repository, source: source, context: context)
 
       mode_key = "#{repository}/#{source}"
 
@@ -99,27 +97,16 @@ module LibraryVersionAnalysis
       return ":#{@word_list[idx]}" # note: the colon is required in the dependency graph obfuscation
     end
 
-    def go(spreadsheet_id:, repository:, source:, context: nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-
-      if spreadsheet_id.nil? || spreadsheet_id.empty?
-        @update_server = true
-        @update_spreadsheet = false
-        variant = "lt"
-      else
-        @update_server = false
-        @update_spreadsheet = true
-        variant = "legacy"
-      end
-
-      puts "Check Version #{variant}" if LibraryVersionAnalysis.dev_output?
+    def go(repository:, source:, context: nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      puts "Check Version" if LibraryVersionAnalysis.dev_output?
 
       case source
       when "npm"
-        meta_data, mode = go_npm(spreadsheet_id, repository, source)
+        meta_data, mode = go_npm(repository, source)
       when "gemfile"
-        meta_data, mode = go_gemfile(spreadsheet_id, repository, source)
+        meta_data, mode = go_gemfile(repository, source)
       when "pnpm"
-        meta_data, mode = go_pnpm(spreadsheet_id, repository, context)
+        meta_data, mode = go_pnpm(repository, context)
       else
         puts "Don't recognize source #{source}"
         exit(-1)
@@ -134,31 +121,25 @@ module LibraryVersionAnalysis
       }
     end
 
-    def go_gemfile(spreadsheet_id, repository, source)
+    def go_gemfile(repository, source)
       puts "  gemfile" if LibraryVersionAnalysis.dev_output?
       gemfile = Gemfile.new(repository)
 
-      meta_data, mode = get_version_summary(gemfile, "OnlineVersionData!A:Q", spreadsheet_id, repository, source)
+      meta_data, mode = get_version_summary(gemfile, repository, source)
 
       return meta_data, mode
     end
 
-    def go_npm(spreadsheet_id, repository, source)
+    def go_npm(repository, source)
       puts "  npm" if LibraryVersionAnalysis.dev_output?
       npm = Npm.new(repository)
 
-      if repository == "jobber" # ugly legacy hack
-        range = "OnlineNodeVersionData!A:Q"
-      else
-        range = "MobileVersionData!A:Q"
-      end
-
-      meta_data, mode = get_version_summary(npm, range, spreadsheet_id, repository, source)
+      meta_data, mode = get_version_summary(npm, repository, source)
 
       return meta_data, mode
     end
 
-    def go_pnpm(spreadsheet_id, repository, context = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def go_pnpm(repository, context = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       puts "  pnpm" if LibraryVersionAnalysis.dev_output?
       pnpm = Pnpm.new(repository)
 
@@ -190,19 +171,11 @@ module LibraryVersionAnalysis
 
         all_modes[workspace_name] = mode
 
-        if @update_spreadsheet
-          puts "    updating spreadsheet #{workspace_name}" if LibraryVersionAnalysis.dev_output?
-          data = spreadsheet_data(parsed_results, repository, workspace_name)
-          update_spreadsheet(spreadsheet_id, "PnpmVersionData!A:Q", data)
-        end
-
-        if @update_server
-          puts "    updating server for #{workspace_name}" if LibraryVersionAnalysis.dev_output?
-          # Use workspace_name as the source for pnpm workspaces
-          server_payload = server_data(parsed_results, repository, workspace_name)
-          log_server_payload(server_payload)
-          LibraryTracking.upload(server_payload.to_json)
-        end
+        puts "    updating server for #{workspace_name}" if LibraryVersionAnalysis.dev_output?
+        # Use workspace_name as the source for pnpm workspaces
+        server_payload = server_data(parsed_results, repository, workspace_name)
+        log_server_payload(server_payload)
+        LibraryTracking.upload(server_payload.to_json)
       end
 
       puts "All Done! Uploaded #{results_by_workspace.keys.count} workspace(s)" if LibraryVersionAnalysis.dev_output?
@@ -211,23 +184,15 @@ module LibraryVersionAnalysis
       return combined_meta_data, all_modes
     end
 
-    def get_version_summary(parser, range, spreadsheet_id, repository, source)
+    def get_version_summary(parser, repository, source)
       parsed_results, meta_data = parser.get_versions(source)
       mode = get_mode_summary(parsed_results, meta_data)
 
-      if @update_spreadsheet
-        puts "    updating spreadsheet #{source}" if LibraryVersionAnalysis.dev_output?
-        data = spreadsheet_data(parsed_results, repository, source)
-        update_spreadsheet(spreadsheet_id, range, data)
-      end
-
-      if @update_server
-        puts "    updating server" if LibraryVersionAnalysis.dev_output?
-        server_payload = server_data(parsed_results, repository, source)
-        log_server_payload(server_payload)
-        data = server_payload.to_json
-        LibraryTracking.upload(data)
-      end
+      puts "    updating server" if LibraryVersionAnalysis.dev_output?
+      server_payload = server_data(parsed_results, repository, source)
+      log_server_payload(server_payload)
+      data = server_payload.to_json
+      LibraryTracking.upload(data)
 
       puts "All Done!" if LibraryVersionAnalysis.dev_output?
 
@@ -286,71 +251,6 @@ module LibraryVersionAnalysis
         dependency.name = obfuscate(dependency.name)
         dependency.parents = obfuscate_dependency_graph(dependency.parents)
       end
-    end
-
-    def spreadsheet_data(results, repository, source)
-      header_row = %w(name owner parent source current_version current_version_date latest_version latest_version_date major minor patch age cve note cve_label cve_severity note_lookup_key)
-      data = [header_row]
-
-      case source
-      when "npm"
-        if repository == "jobber" # ugly legacy hack
-          legacy_source= "ONLINE NODE"
-        else
-          legacy_source= "MOBILE"
-        end
-      when "gemfile"
-        legacy_source = "ONLINE"
-      when "pnpm", "root", /^apps\//, /^packages\//
-        legacy_source = source
-      else
-        legacy_source = "UNKNOWN"
-      end
-
-      data << ["Updated: #{Time.now.utc}"]
-
-      results.each do |name, row|
-        vuln = row.vulnerabilities.nil? ? nil:row.vulnerabilities.select { |v| v.state != "FIXED" }.first
-        if vuln.nil?
-          cvss = nil
-        else
-          cvss = "#{vuln.assigned_severity}#{vuln.identifier}"
-        end
-
-        data << [
-          name,
-          row.owner,
-          row.parent,
-          legacy_source,
-          row.current_version,
-          row.current_version_date,
-          row.latest_version,
-          row.latest_version_date,
-          row.major,
-          row.minor,
-          row.patch,
-          row.age,
-          cvss,
-          '=IFERROR(concatenate(vlookup(indirect("Q" & row()),Notes!A:E,4,false), ":", concatenate(vlookup(indirect("Q" & row()),Notes!A:E,5,false))))',
-          '=IFERROR(vlookup(indirect("Q" & row()),Notes!A:E,4,false), IFERROR(trim(LEFT(INDIRECT("Q" & row()), SEARCH("[", INDIRECT("M" & row()))-1))))',
-          '=IFERROR(vlookup(indirect("O" & row()),\'Lookup data\'!$A$2:$B$6,2,false))',
-          '=IF(ISBLANK(indirect("M" & row())), indirect("A" & row()), indirect("M" & row()))',
-        ]
-      end
-
-      return data
-    end
-
-    def update_spreadsheet(spreadsheet_id, range_name, results)
-      service = Google::Apis::SheetsV4::SheetsService.new
-      service.authorization = ::Google::Auth::ServiceAccountCredentials.make_creds(scope: "https://www.googleapis.com/auth/spreadsheets")
-
-      clear_range = Google::Apis::SheetsV4::BatchClearValuesRequest.new
-      clear_range.ranges = [range_name]
-      service.batch_clear_values(spreadsheet_id, clear_range)
-
-      value_range_object = Google::Apis::SheetsV4::ValueRange.new(range: range_name, values: results)
-      service.update_spreadsheet_value(spreadsheet_id, range_name, value_range_object, value_input_option: "USER_ENTERED")
     end
 
     def get_mode_summary(results, meta_data) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength

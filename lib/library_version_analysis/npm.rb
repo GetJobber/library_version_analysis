@@ -1,3 +1,5 @@
+require "open3"
+require "json"
 require "library_version_analysis/ownership"
 require "library_version_analysis/configuration"
 
