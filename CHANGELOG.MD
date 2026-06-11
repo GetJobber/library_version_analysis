@@ -37,3 +37,9 @@
 
 1.4.7
     Removed graphql dependency.
+
+1.5.4
+    Scope libyear-merged dependencies to the analyzed workspace so cross-workspace
+    deps are no longer uploaded with blank versions (LIBTRACK-136). Distinguish an
+    undeterminable resolved set (pnpm failure) from an empty one. Declared multi_json
+    in the gemspec so consumers can load the gem.
