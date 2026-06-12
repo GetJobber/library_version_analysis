@@ -37,3 +37,6 @@
 
 1.4.7
     Removed graphql dependency.
+
+2.0.2
+    Made robust to missing gemspec ownership.
