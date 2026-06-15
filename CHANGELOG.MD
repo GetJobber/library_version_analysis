@@ -40,3 +40,8 @@
 
 2.0.2
     Made robust to missing gemspec ownership.
+
+2.0.3
+    Scope libyear-merged dependencies to the analyzed workspace so cross-workspace
+    deps are no longer uploaded with blank versions (LIBTRACK-136). Distinguish an
+    undeterminable resolved set (pnpm failure) from an empty one.

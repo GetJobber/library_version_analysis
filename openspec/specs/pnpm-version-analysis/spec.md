@@ -55,3 +55,32 @@ The system SHALL continue to merge resolved current versions with libyear data a
 - **WHEN** a tracked library has no resolvable installed version (e.g. a workspace `link:` dependency)
 - **THEN** the system SHALL record an empty current version for that library without aborting analysis of the remaining libraries
 
+### Requirement: Tracked libraries are limited to the analyzed workspace's dependencies
+
+The system SHALL upload library records only for dependencies present in the analyzed workspace's resolved dependency set (the `dependencies` and `devDependencies` resolved from that workspace's `pnpm list --json`). Dependencies that appear only in the libyear report — including dependencies that belong to other workspaces because the libyear report spans the whole monorepo — SHALL NOT be added as standalone library records.
+
+#### Scenario: libyear report includes dependencies from other workspaces
+
+- **WHEN** the libyear report used for workspace `packages/tsconfig` includes `@fullcalendar/core`, which is a dependency of `apps/jobber-online` and not of `packages/tsconfig`
+- **THEN** `@fullcalendar/core` SHALL NOT appear as a library record in the `packages/tsconfig` results
+
+#### Scenario: No blank-version records from libyear-only dependencies
+
+- **WHEN** the libyear report contains a dependency that has no entry in the analyzed workspace's resolved dependency set
+- **THEN** the system SHALL NOT create a library record with an empty current version for that dependency
+
+#### Scenario: In-workspace dependency present in libyear is retained and enriched
+
+- **WHEN** a dependency is in both the analyzed workspace's resolved dependency set and the libyear report
+- **THEN** its library record SHALL be retained and SHALL carry both the resolved current version and the libyear-provided latest version
+
+#### Scenario: Workspace genuinely has no resolvable direct dependencies
+
+- **WHEN** the analyzed workspace is resolved successfully but has no registry-versioned direct dependencies (e.g. only `link:`/`workspace:` deps, or none)
+- **THEN** the workspace-scope restriction SHALL still apply, so libyear-reported dependencies from other workspaces SHALL be dropped and the workspace SHALL contribute no version-less library records
+
+#### Scenario: Resolved set cannot be determined
+
+- **WHEN** the analyzed workspace's resolved dependency set cannot be determined (e.g. `pnpm list --json` failed, returned unparseable output, or contained no matching workspace entry)
+- **THEN** the system SHALL distinguish this from an empty-but-resolved set, SHALL NOT drop all libraries as out-of-scope, and SHALL instead skip the workspace-scope restriction and log that it was skipped
+

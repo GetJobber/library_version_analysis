@@ -54,7 +54,9 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       allow(analyzer).to receive(:run_pnpm_list_recursive).and_return(pnpm_list_recursive)
       allow(analyzer).to receive(:discover_workspaces).and_return([])
       allow(analyzer).to receive(:add_dependabot_findings).and_return(nil)
-      allow(analyzer).to receive(:add_all_libraries).and_return({})
+      # nil => resolved set could not be determined, so the workspace-scope filter is skipped
+      # and the libyear-derived results below are retained (this context exercises that wiring).
+      allow(analyzer).to receive(:add_all_libraries).and_return(nil)
 
       analyzer.get_versions("test")
     end
@@ -494,12 +496,12 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result["pkg"].current_version).to eq("4.54.0..4.76.0")
     end
 
-    it "returns empty and warns when no workspace entry matches" do
+    it "returns nil and warns when no workspace entry matches" do
       expect(analyzer).to receive(:warn).with(/Could not find pnpm list entry/)
 
       result = analyzer.send(:add_all_libraries, "/project/apps/does-not-exist")
 
-      expect(result).to be_empty
+      expect(result).to be_nil
     end
 
     it "uses the only entry for a single-package repo (no workspace_path)" do
@@ -520,10 +522,28 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(result["lodash"].current_version).to eq("4.17.21")
     end
 
-    it "returns empty on pnpm list failure" do
+    it "returns nil on pnpm list failure" do
       allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(nil)
 
-      expect(analyzer.send(:add_all_libraries, "/project")).to be_empty
+      expect(analyzer.send(:add_all_libraries, "/project")).to be_nil
+    end
+
+    it "returns an empty hash (not nil) when the workspace has no resolvable deps" do
+      empty_ws = <<~DOC
+        [
+          {
+            "name": "tsconfig",
+            "path": "/project",
+            "dependencies": {},
+            "devDependencies": { "sibling": { "version": "link:../sibling" } }
+          }
+        ]
+      DOC
+      allow(analyzer).to receive(:run_pnpm_list_depth0).and_return(empty_ws)
+
+      result = analyzer.send(:add_all_libraries, "/project")
+
+      expect(result).to eq({})
     end
   end
 
@@ -899,6 +919,28 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       expect(parsed_results).to be_empty
     end
 
+    it "removes everything when the resolved set is empty (no deps in this workspace)" do
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: ""),
+        "lodash" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "")
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, Set[], "packages/tsconfig")
+
+      expect(parsed_results).to be_empty
+    end
+
+    it "skips filtering when the resolved set is nil (pnpm could not determine deps)" do
+      allow(analyzer).to receive(:warn)
+      parsed_results = {
+        "react" => LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: "")
+      }
+
+      analyzer.send(:filter_to_workspace_packages, parsed_results, nil, "apps/harbour")
+
+      expect(parsed_results).to have_key("react")
+    end
+
     it "should remove multiple injected packages from different workspaces" do
       workspace_package_names = Set["react"]
 
@@ -985,6 +1027,84 @@ RSpec.describe LibraryVersionAnalysis::Pnpm do
       analyzer.send(:add_ownerships, parsed_results, "/project/apps/anchor")
 
       expect(parsed_results["unknown-lib"].owner).to eq(":default")
+    end
+  end
+
+  describe "#get_versions_for_workspace libyear scoping" do
+    let(:analyzer) { LibraryVersionAnalysis::Pnpm.new("test") }
+
+    def versionline(current)
+      LibraryVersionAnalysis::Versionline.new(owner: ":unknown", current_version: current)
+    end
+
+    # libyear reports a name that IS in the resolved set (react) and a foreign one
+    # (@fullcalendar/core) that belongs to another workspace via the merged-union libyear file.
+    let(:libyear) do
+      '[{"dependency":"react","drift":0.3,"major":1,"minor":2,"patch":3,"available":"19.0.0"},' \
+      '{"dependency":"@fullcalendar/core","drift":1.7,"major":1,"minor":10,"patch":7,"available":"5.10.1"}]'
+    end
+
+    before do
+      allow(analyzer).to receive(:run_libyear_for_workspace).and_return(libyear)
+      allow(analyzer).to receive(:add_dependabot_findings).and_return(nil)
+      allow(analyzer).to receive(:add_dependency_graph).and_return({})
+      allow(analyzer).to receive(:break_cycles)
+      allow(analyzer).to receive(:add_ownerships)
+    end
+
+    it "drops libyear-only deps not in the resolved workspace set" do
+      allow(analyzer).to receive(:add_all_libraries).with("/project/apps/jobber-online")
+                                                    .and_return({ "react" => versionline("19.2.3") })
+
+      parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
+
+      expect(parsed).to have_key("react")
+      expect(parsed).not_to have_key("@fullcalendar/core")
+    end
+
+    it "retains and enriches a dep present in both the resolved set and libyear" do
+      allow(analyzer).to receive(:add_all_libraries).with("/project/apps/jobber-online")
+                                                    .and_return({ "react" => versionline("19.2.3") })
+
+      parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
+
+      expect(parsed["react"].current_version).to eq("19.2.3")
+      expect(parsed["react"].latest_version).to eq("19.0.0")
+      expect(parsed["react"].major).to eq(1)
+      expect(parsed["react"].minor).to eq(2)
+      expect(parsed["react"].patch).to eq(3)
+    end
+
+    it "keeps per-workspace results distinct (foreign libyear dep excluded)" do
+      allow(analyzer).to receive(:add_all_libraries).with("/project/packages/core")
+                                                    .and_return({ "lodash" => versionline("4.17.21") })
+
+      parsed, = analyzer.get_versions_for_workspace("/project/packages/core", "packages/core")
+
+      expect(parsed.keys).to contain_exactly("lodash")
+      expect(parsed).not_to have_key("react")
+      expect(parsed).not_to have_key("@fullcalendar/core")
+    end
+
+    it "drops the whole libyear union when the workspace resolves to no deps (empty set)" do
+      # Empty hash = workspace was resolved and genuinely has no registry-versioned direct deps
+      # (e.g. only link:/workspace: deps). The libyear union must NOT be uploaded as blanks.
+      allow(analyzer).to receive(:add_all_libraries).and_return({})
+
+      parsed, = analyzer.get_versions_for_workspace("/project/packages/tsconfig", "packages/tsconfig")
+
+      expect(parsed).to be_empty
+    end
+
+    it "skips the filter (retains libyear data) when the resolved set cannot be determined (nil)" do
+      allow(analyzer).to receive(:add_all_libraries).and_return(nil)
+      allow(analyzer).to receive(:warn)
+
+      parsed, = analyzer.get_versions_for_workspace("/project/apps/jobber-online", "apps/jobber-online")
+
+      # pnpm could not determine deps: keep prior behavior rather than wiping.
+      expect(parsed).to have_key("react")
+      expect(parsed).to have_key("@fullcalendar/core")
     end
   end
 end

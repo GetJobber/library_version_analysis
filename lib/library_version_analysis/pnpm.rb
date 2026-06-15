@@ -108,9 +108,9 @@ module LibraryVersionAnalysis
 
     # Analyze a single workspace
     def get_versions_for_workspace(workspace_path, source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      all_libraries = {}
       puts("\tPNPM [#{source}] adding all libraries") if LibraryVersionAnalysis.dev_output?
-      all_libraries = add_all_libraries(workspace_path)
+      resolved_libraries = add_all_libraries(workspace_path)
+      all_libraries = resolved_libraries || {}
 
       puts("\tPNPM [#{source}] running libyear") if LibraryVersionAnalysis.dev_output?
 
@@ -120,11 +120,17 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
+      # Snapshot the resolved dependency set for THIS workspace BEFORE merging libyear.
+      # add_all_libraries returns only the analyzed workspace's resolved dependencies, whereas
+      # libyear (whole-monorepo union) and Dependabot can inject names that belong to other
+      # workspaces. Filtering back to this set drops that bleed instead of uploading it with a
+      # blank current_version. (parse_libyear returns all_libraries as the same object, so the
+      # snapshot must be taken before it adds libyear-only keys.) nil means the resolved set
+      # could not be determined (pnpm failed) -> the filter is skipped rather than wiping data.
+      workspace_package_names = resolved_libraries&.keys&.to_set
+
       puts("\tPNPM [#{source}] parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
-      # Snapshot before Dependabot: parse_libyear returns all_libraries as parsed_results (same object),
-      # so any keys Dependabot injects into parsed_results also appear in all_libraries.
-      workspace_package_names = parsed_results.keys.to_set
 
       puts("\tPNPM [#{source}] dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, "pnpm")
@@ -145,9 +151,9 @@ module LibraryVersionAnalysis
     end
 
     def get_versions(source) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      all_libraries = {}
       puts("\tPNPM adding all libraries") if LibraryVersionAnalysis.dev_output?
-      all_libraries = add_all_libraries
+      resolved_libraries = add_all_libraries
+      all_libraries = resolved_libraries || {}
 
       puts("\tPNPM running libyear") if LibraryVersionAnalysis.dev_output?
 
@@ -157,11 +163,14 @@ module LibraryVersionAnalysis
         exit(-1)
       end
 
+      # Snapshot the resolved dependency set for this repo BEFORE merging libyear (see the
+      # workspace variant for the rationale): libyear and Dependabot can inject names beyond the
+      # resolved set, and parse_libyear mutates all_libraries in place. nil means the resolved
+      # set could not be determined (pnpm failed) -> skip the filter rather than wipe data.
+      workspace_package_names = resolved_libraries&.keys&.to_set
+
       puts("\tPNPM parsing libyear") if LibraryVersionAnalysis.dev_output?
       parsed_results, meta_data = parse_libyear(libyear_results, all_libraries)
-      # Snapshot before Dependabot: parse_libyear returns all_libraries as parsed_results (same object),
-      # so any keys Dependabot injects into parsed_results also appear in all_libraries.
-      workspace_package_names = parsed_results.keys.to_set
 
       puts("\tPNPM dependabot") if LibraryVersionAnalysis.dev_output?
       add_dependabot_findings(parsed_results, meta_data, @github_repo, source)
@@ -223,11 +232,23 @@ module LibraryVersionAnalysis
 
     private
 
+    # Restrict parsed_results to the analyzed workspace's resolved dependency set, dropping names
+    # injected by libyear (whole-monorepo union) or Dependabot that are not actually dependencies
+    # of this workspace. Those would otherwise upload with a blank current_version.
     def filter_to_workspace_packages(parsed_results, workspace_package_names, source)
+      # nil means the resolved set could not be DETERMINED (pnpm list failed). Skip the filter
+      # so we don't wipe libyear data. An EMPTY set means the workspace was resolved and has no
+      # registry-versioned direct deps; filter normally so the whole-monorepo libyear union is
+      # dropped instead of uploaded with blank versions.
+      if workspace_package_names.nil?
+        warn "PNPM [#{source}] could not determine resolved dependencies; skipping workspace-scope filter"
+        return
+      end
+
       injected = parsed_results.keys.reject { |name| workspace_package_names.include?(name) }
       return if injected.empty?
 
-      puts("\tPNPM [#{source}] removing #{injected.count} Dependabot alerts not in this workspace") if LibraryVersionAnalysis.dev_output?
+      puts("\tPNPM [#{source}] removing #{injected.count} libraries not in this workspace's resolved dependencies") if LibraryVersionAnalysis.dev_output?
       injected.each { |name| parsed_results.delete(name) }
     end
 
@@ -288,21 +309,27 @@ module LibraryVersionAnalysis
     # rendered tree output: the text rendering depends on the terminal (e.g. the
     # `├── ` prefix is absent in non-TTY/CI runs), which previously caused every
     # current_version to come back blank.
+    # Returns a { name => Versionline } hash of the workspace's resolved direct
+    # dependencies, or nil when the resolved set could not be DETERMINED (pnpm list
+    # failed, unparseable output, or no matching workspace entry). A workspace that
+    # genuinely has no resolvable direct deps returns an empty hash, not nil — the
+    # distinction lets callers drop the libyear union for empty workspaces while not
+    # wiping data when pnpm itself failed.
     def add_all_libraries(workspace_path = nil)
       all_libraries = {}
 
       results = run_pnpm_list_depth0
-      return all_libraries if results.nil?
+      return nil if results.nil?
 
       begin
         json = JSON.parse(results)
       rescue JSON::ParserError
-        return all_libraries
+        return nil
       end
 
       packages = json.is_a?(Array) ? json : [json]
       package = select_workspace_package(packages, workspace_path)
-      return all_libraries if package.nil?
+      return nil if package.nil?
 
       %w(dependencies devDependencies).each do |group|
         (package[group] || {}).each do |name, info|
