@@ -1,3 +1,3 @@
 module LibraryVersionAnalysis
-  VERSION = "1.5.4".freeze
+  VERSION = "2.0.3".freeze
 end

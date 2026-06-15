@@ -77,12 +77,6 @@ To create the github token:
 ### Upload Key
 The key used by LibraryTracking. See that project for the correct value.
 
-### Google keys
-deprecated
-
-### Version Status spreadsheet
-deprecated
-
 ### Slack token
 deprecated
 

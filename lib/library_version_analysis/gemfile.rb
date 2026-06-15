@@ -1,3 +1,4 @@
+require "open3"
 require "library_version_analysis/ownership"
 require "library_version_analysis/configuration"
 require "code_ownership"
@@ -195,6 +196,17 @@ module LibraryVersionAnalysis
       default_owner = LibraryVersionAnalysis::Configuration.get(:default_owner_name)
 
       Dir.glob(File.join("gems", "**", "*.gemspec")) do |gemspec_file|
+        # from_codeowners: false resolves ownership from the team owned_globs config
+        # rather than the generated .github/CODEOWNERS file. Repos that hand-curate
+        # CODEOWNERS (skip_codeowners_validation) otherwise return nil for every gem.
+        team = CodeOwnership.for_file(gemspec_file, from_codeowners: false)
+        if team.nil?
+          warn "No code owner for #{gemspec_file}; skipping gemspec ownership assignment"
+          next
+        end
+
+        group = team.raw_hash["group"]
+
         File.foreach(gemspec_file) do |line|
           scan_result = line.scan(/spec.add_.*dependency\s*"(\S*)"/)
 
@@ -203,8 +215,6 @@ module LibraryVersionAnalysis
           library = scan_result[0][0]
           next if(parsed_results.has_key?(library) && parsed_results[library].owner != default_owner)
 
-          team = CodeOwnership.for_file(gemspec_file)
-          group = team.raw_hash["group"]
           parsed_results[library]&.owner = group.start_with?(":") ? group : ":#{group}"
         end
       end

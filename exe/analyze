@@ -2,26 +2,20 @@
 
 require "library_version_analysis"
 
-if ARGV.count == 1
-  spreadsheet_id = ARGV[0]
-  repository = "jobber-mobile"
-  source = "npm"
-  context = nil
-elsif ARGV.count == 2
-  # this supports legacy calls
-  spreadsheet_id = ""
+if ARGV.count == 2
   repository = ARGV[0]
   source = ARGV[1]
   context = nil
 elsif ARGV.count == 3
   # pnpm workspace support: analyze <repository> pnpm <workspace>
-  spreadsheet_id = ""
   repository = ARGV[0]
   source = ARGV[1]
   context = ARGV[2]
 else
   puts "Usage: analyze <repository> <source> [context]"
   puts "  Examples:"
+  puts "    analyze my-repo npm                     # analyze npm packages"
+  puts "    analyze my-repo gemfile                 # analyze ruby gems"
   puts "    analyze my-repo pnpm                    # analyze all pnpm workspaces"
   puts "    analyze my-repo pnpm packages/ui       # analyze specific workspace"
 
@@ -29,7 +23,6 @@ else
 end
 
 results = LibraryVersionAnalysis::CheckVersionStatus.run(
-  spreadsheet_id: spreadsheet_id,
   repository: repository,
   source: source,
   context: context

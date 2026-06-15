@@ -130,6 +130,58 @@ RSpec.describe LibraryVersionAnalysis::Gemfile do
       allow(LibraryVersionAnalysis::CheckVersionStatus).to receive(:legacy?).and_return(false)
     end
 
+    describe "#add_ownership_from_gemspecs" do
+      let(:analyzer) { LibraryVersionAnalysis::Gemfile.new("test") }
+      let(:gemspec_contents) do
+        <<~DOC
+          spec.add_dependency "aasm"
+          spec.add_development_dependency "packwerk"
+        DOC
+      end
+
+      before(:each) do
+        allow(LibraryVersionAnalysis::Configuration).to receive(:get).and_call_original
+        allow(LibraryVersionAnalysis::Configuration).to receive(:get)
+          .with(:default_owner_name).and_return(:unspecified)
+        allow(Dir).to receive(:glob).and_call_original
+        allow(Dir).to receive(:glob).with(File.join("gems", "**", "*.gemspec"))
+          .and_yield("gems/example/example.gemspec")
+        allow(File).to receive(:foreach).and_call_original
+        allow(File).to receive(:foreach).with("gems/example/example.gemspec")
+          .and_yield('spec.add_dependency "aasm"')
+          .and_yield('spec.add_development_dependency "packwerk"')
+      end
+
+      it "assigns the gemspec owner's group to each dependency" do
+        team = double("team", raw_hash: { "group" => "self_serve" })
+        allow(CodeOwnership).to receive(:for_file)
+          .with("gems/example/example.gemspec", from_codeowners: false).and_return(team)
+
+        parsed_results = {
+          "aasm" => LibraryVersionAnalysis::Versionline.new(owner: :unspecified),
+          "packwerk" => LibraryVersionAnalysis::Versionline.new(owner: :unspecified),
+        }
+
+        analyzer.send(:add_ownership_from_gemspecs, parsed_results)
+
+        expect(parsed_results["aasm"].owner).to eq(":self_serve")
+        expect(parsed_results["packwerk"].owner).to eq(":self_serve")
+      end
+
+      it "skips the gemspec without raising when it has no code owner" do
+        allow(CodeOwnership).to receive(:for_file)
+          .with("gems/example/example.gemspec", from_codeowners: false).and_return(nil)
+
+        parsed_results = {
+          "aasm" => LibraryVersionAnalysis::Versionline.new(owner: :unspecified),
+        }
+
+        expect { analyzer.send(:add_ownership_from_gemspecs, parsed_results) }
+          .not_to raise_error
+        expect(parsed_results["aasm"].owner).to eq(:unspecified)
+      end
+    end
+
     describe "#add_dependency_graph" do
       it "should reverse simple chain" do
         c = SpecSetStruct.new(name: "c")
