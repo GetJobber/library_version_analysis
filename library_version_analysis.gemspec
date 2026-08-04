@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "libyear-bundler"
   spec.add_dependency "open3"
   spec.add_dependency "pry", "~> 0.16.0"
-  spec.add_dependency "slack-ruby-client"
+  spec.add_dependency "slack-ruby-client", "~> 3.2"
   spec.add_dependency "code_ownership"
   spec.add_development_dependency "pry-byebug"
   spec.add_development_dependency "rspec", "~> 3.2"
