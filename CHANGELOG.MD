@@ -45,3 +45,6 @@
     Scope libyear-merged dependencies to the analyzed workspace so cross-workspace
     deps are no longer uploaded with blank versions (LIBTRACK-136). Distinguish an
     undeterminable resolved set (pnpm failure) from an empty one.
+
+2.0.4
+    Require slack-ruby-client ~> 3.2.
