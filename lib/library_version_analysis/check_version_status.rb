@@ -1,6 +1,7 @@
 require "pry-byebug"
 require "library_version_analysis/library_tracking"
 require "library_version_analysis/configuration"
+require "library_version_analysis/ownership"
 
 module LibraryVersionAnalysis
   Versionline = Struct.new(
@@ -216,7 +217,11 @@ module LibraryVersionAnalysis
       results.each do |real_name, row|
         name = OBFUSCATE_WORDS ? obfuscate(real_name) : real_name
 
-        libraries.push({name: name, owner: row.owner, owner_reason: row.owner_reason, version: row.current_version})
+        # Canonicalize owner on the outbound payload only. Do not mutate
+        # row.owner — downstream branching (e.g. line.owner == :attention_needed
+        # in #get_mode_summary) depends on the original symbol/string. See
+        # openspec change `emit-canonical-owner-names` (LIBTRACK-132).
+        libraries.push({name: name, owner: LibraryVersionAnalysis::Ownership.canonicalize(row.owner), owner_reason: row.owner_reason, version: row.current_version})
         row.vulnerabilities&.each do |vuln|
           permalink = OBFUSCATE_WORDS ? "https://github.com/advisories" : vuln.permalink
           identifier = OBFUSCATE_WORDS ? "\"GHSA-XXX\", \"CVE-XXX\"" : vuln.identifier.join(", ")
